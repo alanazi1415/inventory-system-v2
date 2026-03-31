@@ -4,12 +4,12 @@ import { AlertTriangle, Clock, Package, Heart, Ban, Syringe, Info } from "lucide
 
 interface StatsCardsProps { 
   stats: { 
-    totalItems: number
-    expiredItems: number
-    expiringItems: number
-    holdItems: number
-    lifeSavingItems: number
-    vaccineItems: number
+    totalItems?: number
+    expiredItems?: number
+    expiringItems?: number
+    holdItems?: number
+    lifeSavingItems?: number
+    vaccineItems?: number
     holdTypes?: { type: string; count: number; qty: number }[]
   }
   onCardClick: (cat: string) => void 
@@ -17,12 +17,12 @@ interface StatsCardsProps {
 
 export function StatsCards({ stats, onCardClick }: StatsCardsProps) {
   const cards = [
-    { id: 'total', label: 'إجمالي البنود', value: stats.totalItems, icon: Package, color: 'text-blue-500', bgColor: 'bg-blue-50', clickable: false },
-    { id: 'expired', label: 'البنود المنتهية', value: stats.expiredItems, icon: AlertTriangle, color: 'text-red-500', bgColor: 'bg-red-50', clickable: true },
-    { id: 'expiring', label: 'قاربت على الانتهاء', value: stats.expiringItems, icon: Clock, color: 'text-orange-500', bgColor: 'bg-orange-50', clickable: true },
-    { id: 'hold', label: 'البنود عليها Hold', value: stats.holdItems, icon: Ban, color: 'text-yellow-600', bgColor: 'bg-yellow-50', clickable: true },
-    { id: 'life-saving', label: 'البنود المنقذة للحياة', value: stats.lifeSavingItems, icon: Heart, color: 'text-pink-500', bgColor: 'bg-pink-50', clickable: true },
-    { id: 'vaccine', label: 'اللقاحات', value: stats.vaccineItems || 0, icon: Syringe, color: 'text-green-500', bgColor: 'bg-green-50', clickable: true },
+    { id: 'total', label: 'إجمالي البنود', value: stats?.totalItems ?? 0, icon: Package, color: 'text-blue-500', bgColor: 'bg-blue-50', clickable: false },
+    { id: 'expired', label: 'البنود المنتهية', value: stats?.expiredItems ?? 0, icon: AlertTriangle, color: 'text-red-500', bgColor: 'bg-red-50', clickable: true },
+    { id: 'expiring', label: 'قاربت على الانتهاء', value: stats?.expiringItems ?? 0, icon: Clock, color: 'text-orange-500', bgColor: 'bg-orange-50', clickable: true },
+    { id: 'hold', label: 'البنود عليها Hold', value: stats?.holdItems ?? 0, icon: Ban, color: 'text-yellow-600', bgColor: 'bg-yellow-50', clickable: true },
+    { id: 'life-saving', label: 'البنود المنقذة للحياة', value: stats?.lifeSavingItems ?? 0, icon: Heart, color: 'text-pink-500', bgColor: 'bg-pink-50', clickable: true },
+    { id: 'vaccine', label: 'اللقاحات', value: stats?.vaccineItems ?? 0, icon: Syringe, color: 'text-green-500', bgColor: 'bg-green-50', clickable: true },
   ]
 
   return (
@@ -41,7 +41,7 @@ export function StatsCards({ stats, onCardClick }: StatsCardsProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">{card.label}</p>
-                    <p className={`text-2xl font-bold ${card.color}`}>{card.value.toLocaleString('ar-SA')}</p>
+                    <p className={`text-2xl font-bold ${card.color}`}>{(card.value ?? 0).toLocaleString('ar-SA')}</p>
                   </div>
                   <Icon className={`w-8 h-8 ${card.color}`} />
                 </div>
@@ -52,7 +52,7 @@ export function StatsCards({ stats, onCardClick }: StatsCardsProps) {
       </div>
 
       {/* Hold Types Distribution */}
-      {stats.holdTypes && stats.holdTypes.length > 0 && (
+      {stats?.holdTypes && stats.holdTypes.length > 0 && (
         <Card className="bg-yellow-50 border-yellow-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -65,7 +65,7 @@ export function StatsCards({ stats, onCardClick }: StatsCardsProps) {
                   <p className="text-sm text-gray-600 truncate" title={ht.type}>{ht.type}</p>
                   <div className="flex justify-between items-center mt-1">
                     <p className="font-bold text-yellow-700">{ht.count} بند</p>
-                    <p className="text-sm text-gray-500">{ht.qty.toLocaleString('ar-SA')} وحدة</p>
+                    <p className="text-sm text-gray-500">{(ht.qty ?? 0).toLocaleString('ar-SA')} وحدة</p>
                   </div>
                 </div>
               ))}

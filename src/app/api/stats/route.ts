@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     // Basic counts - بدون البنود المنتهية (daysToExpire > 0)
     const [
       totalItems,
+      expiredItems,
       holdItems,
       lifeSavingItems,
       narcoticItems,
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
       centralItems
     ] = await Promise.all([
       db.inventoryItem.count({ where: { system, daysToExpire: { gt: 0 } } }),
+      db.inventoryItem.count({ where: { system, daysToExpire: { lte: 0 } } }),
       db.inventoryItem.count({ where: { system, daysToExpire: { gt: 0 }, holdQty: { gt: 0 } } }),
       db.inventoryItem.count({ where: { system, daysToExpire: { gt: 0 }, isLifeSaving: true } }),
       db.inventoryItem.count({ where: { system, daysToExpire: { gt: 0 }, isNarcotic: true } }),
@@ -73,6 +75,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       totalItems,
+      expiredItems,
       expiringItems,
       holdItems,
       lifeSavingItems,
@@ -96,6 +99,7 @@ export async function GET(request: NextRequest) {
     console.error('Stats error:', error)
     return NextResponse.json({
       totalItems: 0,
+      expiredItems: 0,
       expiringItems: 0,
       holdItems: 0,
       lifeSavingItems: 0,

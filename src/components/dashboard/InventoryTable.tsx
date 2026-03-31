@@ -104,7 +104,7 @@ export function InventoryTable({ system, category = 'all' }: InventoryTableProps
   }
 
   const getHoldBadge = (item: InventoryItem) => {
-    if (item.holdQty <= 0) return null
+    if ((item.holdQty ?? 0) <= 0) return null
     
     let bgColor = 'bg-yellow-500'
     if (item.holdType?.includes('Strategic')) bgColor = 'bg-blue-500'
@@ -199,7 +199,7 @@ export function InventoryTable({ system, category = 'all' }: InventoryTableProps
                     className={
                       item.daysToExpire <= 0 ? "bg-red-50" : 
                       item.daysToExpire <= 90 ? "bg-orange-50" : 
-                      item.holdQty > 0 ? "bg-yellow-50" : ""
+                      (item.holdQty ?? 0) > 0 ? "bg-yellow-50" : ""
                     }
                   >
                     <TableCell className="font-mono text-sm">
@@ -211,13 +211,13 @@ export function InventoryTable({ system, category = 'all' }: InventoryTableProps
                     <TableCell className="max-w-xs truncate">{item.genericItemDescription}</TableCell>
                     <TableCell className="font-mono text-sm">{item.customerItemNumber}</TableCell>
                     <TableCell className="font-mono text-sm">{item.tradeItemNumber}</TableCell>
-                    <TableCell>{item.totalQty.toLocaleString('ar-SA')}</TableCell>
-                    <TableCell>{item.availableQty.toLocaleString('ar-SA')}</TableCell>
+                    <TableCell>{(item.totalQty ?? 0).toLocaleString('ar-SA')}</TableCell>
+                    <TableCell>{(item.availableQty ?? 0).toLocaleString('ar-SA')}</TableCell>
                     <TableCell>
-                      {item.holdQty > 0 && (
+                      {(item.holdQty ?? 0) > 0 && (
                         <div className="flex items-center gap-1">
                           <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                          {item.holdQty.toLocaleString('ar-SA')}
+                          {(item.holdQty ?? 0).toLocaleString('ar-SA')}
                         </div>
                       )}
                     </TableCell>

@@ -39,24 +39,31 @@ export async function GET(request: NextRequest) {
         break
       case 'life_saving':
         where.isLifeSaving = true
+        where.daysToExpire = { gt: 0 }
         break
       case 'narcotic':
         where.isNarcotic = true
+        where.daysToExpire = { gt: 0 }
         break
       case 'vaccine':
         where.isVaccine = true
+        where.daysToExpire = { gt: 0 }
         break
       case 'strategic':
         where.isStrategic = true
+        where.daysToExpire = { gt: 0 }
         break
       case 'smoking':
         where.isSmoking = true
+        where.daysToExpire = { gt: 0 }
         break
       case 'kidney':
         where.isKidney = true
+        where.daysToExpire = { gt: 0 }
         break
       case 'central':
         where.isCentral = true
+        where.daysToExpire = { gt: 0 }
         break
     }
 
