@@ -4,6 +4,156 @@ import * as xlsx from 'xlsx'
 
 export const dynamic = 'force-dynamic'
 
+// دالة لإنشاء الجداول إذا لم تكن موجودة
+async function ensureDatabaseTables() {
+  try {
+    // التحقق من وجود جدول InventoryItem
+    await db.$queryRaw`SELECT 1 FROM "InventoryItem" LIMIT 1`
+  } catch {
+    console.log('Creating InventoryItem table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "InventoryItem" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        system TEXT NOT NULL,
+        "genericItemNumber" TEXT,
+        "genericItemDescription" TEXT,
+        "tradeItemNumber" TEXT,
+        "customerItemNumber" TEXT,
+        "totalQty" DOUBLE DEFAULT 0,
+        "holdQty" DOUBLE DEFAULT 0,
+        "availableQty" DOUBLE DEFAULT 0,
+        "expiryDate" TEXT,
+        "daysToExpire" DOUBLE DEFAULT 0,
+        hold TEXT,
+        "holdType" TEXT,
+        "isLifeSaving" BOOLEAN DEFAULT false,
+        "isNarcotic" BOOLEAN DEFAULT false,
+        "isVaccine" BOOLEAN DEFAULT false,
+        "isStrategic" BOOLEAN DEFAULT false,
+        "createdAt" TIMESTAMP DEFAULT NOW(),
+        "updatedAt" TIMESTAMP DEFAULT NOW()
+      )
+    `
+    // إنشاء الفهارسات
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_system_idx" ON "InventoryItem" (system)`
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_daysToExpire_idx" ON "InventoryItem" ("daysToExpire")`
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_genericItemNumber_idx" ON "InventoryItem" ("genericItemNumber")`
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_customerItemNumber_idx" ON "InventoryItem" ("customerItemNumber")`
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_tradeItemNumber_idx" ON "InventoryItem" ("tradeItemNumber")`
+  }
+
+  // التحقق من وجود جدول LifeSavingItem
+  try {
+    await db.$queryRaw`SELECT 1 FROM "LifeSavingItem" LIMIT 1`
+  } catch {
+    console.log('Creating LifeSavingItem table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "LifeSavingItem" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "itemNumber" TEXT NOT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW()
+      )
+    `
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "LifeSavingItem_itemNumber_idx" ON "LifeSavingItem" ("itemNumber")`
+  }
+
+  // التحقق من وجود جدول NarcoticItem
+  try {
+    await db.$queryRaw`SELECT 1 FROM "NarcoticItem" LIMIT 1`
+  } catch {
+    console.log('Creating NarcoticItem table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "NarcoticItem" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "itemNumber" TEXT NOT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW()
+      )
+    `
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "NarcoticItem_itemNumber_idx" ON "NarcoticItem" ("itemNumber")`
+  }
+
+  // التحقق من وجود جدول VaccineItem
+  try {
+    await db.$queryRaw`SELECT 1 FROM "VaccineItem" LIMIT 1`
+  } catch {
+    console.log('Creating VaccineItem table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "VaccineItem" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "itemNumber" TEXT NOT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW()
+      )
+    `
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "VaccineItem_itemNumber_idx" ON "VaccineItem" ("itemNumber")`
+  }
+
+  // التحقق من وجود جدول StrategicItem
+  try {
+    await db.$queryRaw`SELECT 1 FROM "StrategicItem" LIMIT 1`
+  } catch {
+    console.log('Creating StrategicItem table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "StrategicItem" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "itemNumber" TEXT NOT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW()
+      )
+    `
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "StrategicItem_itemNumber_idx" ON "StrategicItem" ("itemNumber")`
+  }
+
+  // التحقق من وجود جدول VisitorLog
+  try {
+    await db.$queryRaw`SELECT 1 FROM "VisitorLog" LIMIT 1`
+  } catch {
+    console.log('Creating VisitorLog table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "VisitorLog" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "sessionId" TEXT NOT NULL,
+        page TEXT NOT NULL,
+        system TEXT,
+        "visitedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "ipAddress" TEXT
+      )
+    `
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "VisitorLog_visitedAt_idx" ON "VisitorLog" ("visitedAt")`
+  }
+
+  // التحقق من وجود جدول UploadLog
+  try {
+    await db.$queryRaw`SELECT 1 FROM "UploadLog" LIMIT 1`
+  } catch {
+    console.log('Creating UploadLog table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "UploadLog" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "fileName" TEXT NOT NULL,
+        system TEXT NOT NULL,
+        "recordsCount" INTEGER DEFAULT 0,
+        "createdAt" TIMESTAMP DEFAULT NOW()
+      )
+    `
+  }
+
+  // التحقق من وجود جدول AdminSession
+  try {
+    await db.$queryRaw`SELECT 1 FROM "AdminSession" LIMIT 1`
+  } catch {
+    console.log('Creating AdminSession table...')
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "AdminSession" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        token TEXT UNIQUE NOT NULL,
+        "createdAt" TIMESTAMP DEFAULT NOW(),
+        "expiresAt" TIMESTAMP NOT NULL
+      )
+    `
+  }
+
+  console.log('All tables verified/created successfully')
+}
+
 function parseExcelDate(value: any): Date | null {
   if (!value) return null
   if (typeof value === 'number') {
@@ -56,6 +206,9 @@ async function checkAuth() {
 
 export async function POST(request: NextRequest) {
   try {
+    // التأكد من وجود جميع الجداول في قاعدة البيانات
+    await ensureDatabaseTables()
+
     const isAuth = await checkAuth()
     if (!isAuth) {
       return NextResponse.json({ error: 'غير مصرح لك بالوصول' }, { status: 401 })
