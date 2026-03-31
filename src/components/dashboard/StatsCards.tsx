@@ -1,6 +1,6 @@
 'use client'
 import { Card, CardContent } from "@/components/ui/card"
-import { AlertTriangle, Clock, Package, Heart, Ban, Syringe, Info } from "lucide-react"
+import { Clock, Package, Heart, Ban, Syringe, Info } from "lucide-react"
 
 interface StatsCardsProps { 
   stats: { 
@@ -18,7 +18,6 @@ interface StatsCardsProps {
 export function StatsCards({ stats, onCardClick }: StatsCardsProps) {
   const cards = [
     { id: 'total', label: 'إجمالي البنود', value: stats?.totalItems ?? 0, icon: Package, color: 'text-blue-500', bgColor: 'bg-blue-50', clickable: false },
-    { id: 'expired', label: 'البنود المنتهية', value: stats?.expiredItems ?? 0, icon: AlertTriangle, color: 'text-red-500', bgColor: 'bg-red-50', clickable: true },
     { id: 'expiring', label: 'قاربت على الانتهاء', value: stats?.expiringItems ?? 0, icon: Clock, color: 'text-orange-500', bgColor: 'bg-orange-50', clickable: true },
     { id: 'hold', label: 'البنود عليها Hold', value: stats?.holdItems ?? 0, icon: Ban, color: 'text-yellow-600', bgColor: 'bg-yellow-50', clickable: true },
     { id: 'life-saving', label: 'البنود المنقذة للحياة', value: stats?.lifeSavingItems ?? 0, icon: Heart, color: 'text-pink-500', bgColor: 'bg-pink-50', clickable: true },

@@ -26,7 +26,11 @@ export async function GET(request: NextRequest) {
     const sortOrder = searchParams.get('sortOrder') || 'asc'
 
     const skip = (page - 1) * limit
-    const where: Prisma.InventoryItemWhereInput = { system }
+    const where: Prisma.InventoryItemWhereInput = { 
+      system,
+      // دائماً استبعاد البنود المنتهية ما عدا عند طلب تصنيف expired
+      daysToExpire: { gt: 0 }
+    }
 
     // Search across multiple fields
     if (search) {
@@ -39,13 +43,13 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // Category filters
+    // Category filters - تعديل الفلترة حسب التصنيف
     switch (category) {
       case 'all':
-        // استبعاد البنود المنتهية من العرض الافتراضي
-        where.daysToExpire = { gt: 0 }
+        // البنود المنتهية مستثناة بالفعل
         break
       case 'expired':
+        // فقط للـ admin - إظهار البنود المنتهية
         where.daysToExpire = { lte: 0 }
         break
       case 'expiring':
@@ -56,31 +60,24 @@ export async function GET(request: NextRequest) {
         break
       case 'life_saving':
         where.isLifeSaving = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'narcotic':
         where.isNarcotic = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'vaccine':
         where.isVaccine = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'strategic':
         where.isStrategic = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'smoking':
         where.isSmoking = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'kidney':
         where.isKidney = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'central':
         where.isCentral = true
-        where.daysToExpire = { gt: 0 }
         break
     }
 

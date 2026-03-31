@@ -20,15 +20,18 @@ export async function GET(request: NextRequest) {
       await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isCentral" BOOLEAN NOT NULL DEFAULT false`
     }
 
-    // Build where clause
-    const where: any = { system }
+    // Build where clause - دائماً استبعاد البنود المنتهية
+    const where: any = { 
+      system,
+      daysToExpire: { gt: 0 }
+    }
 
     switch (category) {
       case 'all':
-        // استبعاد البنود المنتهية
-        where.daysToExpire = { gt: 0 }
+        // البنود المنتهية مستثناة بالفعل
         break
       case 'expired':
+        // لا نريد تصدير البنود المنتهية
         where.daysToExpire = { lte: 0 }
         break
       case 'expiring':
@@ -39,31 +42,24 @@ export async function GET(request: NextRequest) {
         break
       case 'life_saving':
         where.isLifeSaving = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'narcotic':
         where.isNarcotic = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'vaccine':
         where.isVaccine = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'strategic':
         where.isStrategic = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'smoking':
         where.isSmoking = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'kidney':
         where.isKidney = true
-        where.daysToExpire = { gt: 0 }
         break
       case 'central':
         where.isCentral = true
-        where.daysToExpire = { gt: 0 }
         break
     }
 
