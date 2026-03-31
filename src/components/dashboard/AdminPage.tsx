@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield } from "lucide-react"
+import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface AdminPageProps { onLogout: () => void }
@@ -12,7 +12,7 @@ export function AdminPage({ onLogout }: AdminPageProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
-  const [selectedSystem, setSelectedSystem] = useState<'hoz' | 'mwsal' | 'life_saving' | 'narcotic' | 'vaccine' | 'strategic'>('hoz')
+  const [selectedSystem, setSelectedSystem] = useState<string>('hoz')
   const [uploadLogs, setUploadLogs] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
 
@@ -53,7 +53,6 @@ export function AdminPage({ onLogout }: AdminPageProps) {
           records: data.recordsCount,
           time: new Date().toLocaleString('ar-SA')
         }, ...prev])
-        // Refresh stats after upload
         setTimeout(fetchStats, 1000)
       } else {
         toast({ title: "خطأ", description: data.details || data.error, variant: "destructive" })
@@ -67,12 +66,15 @@ export function AdminPage({ onLogout }: AdminPageProps) {
   }
 
   const systemOptions = [
-    { value: 'hoz', label: 'هوز (E200)', desc: 'مستودع هوز', icon: Database, color: 'text-purple-500', bgColor: 'bg-purple-50' },
-    { value: 'mwsal', label: 'موصول (E300)', desc: 'مستودع موصول', icon: Database, color: 'text-orange-500', bgColor: 'bg-orange-50' },
-    { value: 'life_saving', label: 'البنود المنقذة للحياة', desc: 'قائمة البنود المنقذة', icon: Heart, color: 'text-pink-500', bgColor: 'bg-pink-50' },
-    { value: 'narcotic', label: 'المخدرات', desc: 'قائمة البنود المخدرة', icon: Ban, color: 'text-purple-600', bgColor: 'bg-purple-50' },
+    { value: 'hoz', label: 'هوز', desc: 'مستودع هوز', icon: Database, color: 'text-purple-500', bgColor: 'bg-purple-50' },
+    { value: 'mwsal', label: 'موصول', desc: 'مستودع موصول', icon: Database, color: 'text-orange-500', bgColor: 'bg-orange-50' },
+    { value: 'life_saving', label: 'المنقذة للحياة', desc: 'بنود منقذة', icon: Heart, color: 'text-pink-500', bgColor: 'bg-pink-50' },
+    { value: 'narcotic', label: 'المخدرات', desc: 'بنود مخدرة', icon: Ban, color: 'text-purple-600', bgColor: 'bg-purple-50' },
     { value: 'vaccine', label: 'اللقاحات', desc: 'قائمة اللقاحات', icon: Syringe, color: 'text-green-500', bgColor: 'bg-green-50' },
-    { value: 'strategic', label: 'البنود الاستراتيجية', desc: 'قائمة البنود الاستراتيجية', icon: Shield, color: 'text-amber-500', bgColor: 'bg-amber-50' },
+    { value: 'strategic', label: 'الاستراتيجية', desc: 'بنود استراتيجية', icon: Shield, color: 'text-amber-500', bgColor: 'bg-amber-50' },
+    { value: 'smoking', label: 'التدخين', desc: 'بنود التدخين', icon: Cigarette, color: 'text-blue-600', bgColor: 'bg-blue-50' },
+    { value: 'kidney', label: 'الكلى', desc: 'بنود الكلى', icon: Droplets, color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
+    { value: 'central', label: 'المركزية', desc: 'البنود المركزية', icon: Building2, color: 'text-slate-600', bgColor: 'bg-slate-50' },
   ]
 
   return (
@@ -120,26 +122,10 @@ export function AdminPage({ onLogout }: AdminPageProps) {
           <CardContent className="pt-4 space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="flex justify-between"><span>إجمالي البنود:</span><strong>{stats?.hozItems?.toLocaleString('ar-SA') || 0}</strong></div>
-              <div className="flex justify-between text-red-600"><span>المنتهية:</span><strong>{stats?.hozExpired?.toLocaleString('ar-SA') || 0}</strong></div>
               <div className="flex justify-between text-orange-600"><span>قاربت على الانتهاء:</span><strong>{stats?.hozExpiring?.toLocaleString('ar-SA') || 0}</strong></div>
               <div className="flex justify-between text-yellow-600"><span>عليها Hold:</span><strong>{stats?.hozHoldItems?.toLocaleString('ar-SA') || 0}</strong></div>
               <div className="flex justify-between text-pink-600"><span>المنقذة للحياة:</span><strong>{stats?.lifeSavingInHoz?.toLocaleString('ar-SA') || 0}</strong></div>
             </div>
-            
-            {/* Hold Types for Hoz */}
-            {stats?.hozHoldTypes?.length > 0 && (
-              <div className="mt-2 pt-2 border-t">
-                <p className="text-xs text-gray-500 mb-2">أنواع Hold:</p>
-                <div className="space-y-1">
-                  {stats.hozHoldTypes.map((ht: any, i: number) => (
-                    <div key={i} className="flex justify-between text-xs bg-gray-50 p-1 rounded">
-                      <span>{ht.type}</span>
-                      <span>{ht.count} بند ({ht.qty?.toLocaleString('ar-SA')} وحدة)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -154,66 +140,63 @@ export function AdminPage({ onLogout }: AdminPageProps) {
           <CardContent className="pt-4 space-y-3">
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="flex justify-between"><span>إجمالي البنود:</span><strong>{stats?.mwsalItems?.toLocaleString('ar-SA') || 0}</strong></div>
-              <div className="flex justify-between text-red-600"><span>المنتهية:</span><strong>{stats?.mwsalExpired?.toLocaleString('ar-SA') || 0}</strong></div>
               <div className="flex justify-between text-orange-600"><span>قاربت على الانتهاء:</span><strong>{stats?.mwsalExpiring?.toLocaleString('ar-SA') || 0}</strong></div>
               <div className="flex justify-between text-yellow-600"><span>عليها Hold:</span><strong>{stats?.mwsalHoldItems?.toLocaleString('ar-SA') || 0}</strong></div>
               <div className="flex justify-between text-pink-600"><span>المنقذة للحياة:</span><strong>{stats?.lifeSavingInMwsal?.toLocaleString('ar-SA') || 0}</strong></div>
             </div>
-            
-            {/* Hold Types for Mwsal */}
-            {stats?.mwsalHoldTypes?.length > 0 && (
-              <div className="mt-2 pt-2 border-t">
-                <p className="text-xs text-gray-500 mb-2">أنواع Hold:</p>
-                <div className="space-y-1">
-                  {stats.mwsalHoldTypes.map((ht: any, i: number) => (
-                    <div key={i} className="flex justify-between text-xs bg-gray-50 p-1 rounded">
-                      <span>{ht.type}</span>
-                      <span>{ht.count} بند ({ht.qty?.toLocaleString('ar-SA')} وحدة)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Special Items Uploaded */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
         <Card className="bg-pink-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Heart className="w-6 h-6 text-pink-500" />
-            <div>
-              <p className="text-sm text-gray-600">قائمة البنود المنقذة</p>
-              <p className="text-xl font-bold text-pink-600">{stats?.lifeSavingCount?.toLocaleString('ar-SA') || 0}</p>
-            </div>
+          <CardContent className="p-3 flex flex-col items-center">
+            <Heart className="w-5 h-5 text-pink-500 mb-1" />
+            <p className="text-xs text-gray-600">المنقذة للحياة</p>
+            <p className="text-lg font-bold text-pink-600">{stats?.lifeSavingCount?.toLocaleString('ar-SA') || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-purple-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Ban className="w-6 h-6 text-purple-600" />
-            <div>
-              <p className="text-sm text-gray-600">قائمة البنود المخدرة</p>
-              <p className="text-xl font-bold text-purple-600">{stats?.narcoticCount?.toLocaleString('ar-SA') || 0}</p>
-            </div>
+          <CardContent className="p-3 flex flex-col items-center">
+            <Ban className="w-5 h-5 text-purple-600 mb-1" />
+            <p className="text-xs text-gray-600">المخدرات</p>
+            <p className="text-lg font-bold text-purple-600">{stats?.narcoticCount?.toLocaleString('ar-SA') || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-green-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Syringe className="w-6 h-6 text-green-500" />
-            <div>
-              <p className="text-sm text-gray-600">قائمة اللقاحات</p>
-              <p className="text-xl font-bold text-green-600">{stats?.vaccineCount?.toLocaleString('ar-SA') || 0}</p>
-            </div>
+          <CardContent className="p-3 flex flex-col items-center">
+            <Syringe className="w-5 h-5 text-green-500 mb-1" />
+            <p className="text-xs text-gray-600">اللقاحات</p>
+            <p className="text-lg font-bold text-green-600">{stats?.vaccineCount?.toLocaleString('ar-SA') || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-amber-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Shield className="w-6 h-6 text-amber-500" />
-            <div>
-              <p className="text-sm text-gray-600">قائمة البنود الاستراتيجية</p>
-              <p className="text-xl font-bold text-amber-600">{stats?.strategicCount?.toLocaleString('ar-SA') || 0}</p>
-            </div>
+          <CardContent className="p-3 flex flex-col items-center">
+            <Shield className="w-5 h-5 text-amber-500 mb-1" />
+            <p className="text-xs text-gray-600">الاستراتيجية</p>
+            <p className="text-lg font-bold text-amber-600">{stats?.strategicCount?.toLocaleString('ar-SA') || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-blue-50">
+          <CardContent className="p-3 flex flex-col items-center">
+            <Cigarette className="w-5 h-5 text-blue-600 mb-1" />
+            <p className="text-xs text-gray-600">التدخين</p>
+            <p className="text-lg font-bold text-blue-600">{stats?.smokingCount?.toLocaleString('ar-SA') || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-cyan-50">
+          <CardContent className="p-3 flex flex-col items-center">
+            <Droplets className="w-5 h-5 text-cyan-600 mb-1" />
+            <p className="text-xs text-gray-600">الكلى</p>
+            <p className="text-lg font-bold text-cyan-600">{stats?.kidneyCount?.toLocaleString('ar-SA') || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-50">
+          <CardContent className="p-3 flex flex-col items-center">
+            <Building2 className="w-5 h-5 text-slate-600 mb-1" />
+            <p className="text-xs text-gray-600">المركزية</p>
+            <p className="text-lg font-bold text-slate-600">{stats?.centralCount?.toLocaleString('ar-SA') || 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -225,25 +208,24 @@ export function AdminPage({ onLogout }: AdminPageProps) {
             <Upload className="w-5 h-5" />
             رفع ملفات Excel
           </CardTitle>
-          <CardDescription>اختر النظام ثم ارفع ملف Excel الخاص به</CardDescription>
+          <CardDescription>اختر التصنيف ثم ارفع ملف Excel الخاص به</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+          <div className="grid grid-cols-3 md:grid-cols-9 gap-2">
             {systemOptions.map((opt) => {
               const Icon = opt.icon
               return (
                 <button
                   key={opt.value}
-                  onClick={() => setSelectedSystem(opt.value as any)}
-                  className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                  onClick={() => setSelectedSystem(opt.value)}
+                  className={`p-2 rounded-lg border-2 text-center transition-colors ${
                     selectedSystem === opt.value
                       ? 'border-primary bg-primary/10'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 mx-auto mb-1 ${opt.color}`} />
-                  <p className="font-medium text-sm">{opt.label}</p>
-                  <p className="text-xs text-gray-500">{opt.desc}</p>
+                  <Icon className={`w-4 h-4 mx-auto mb-1 ${opt.color}`} />
+                  <p className="font-medium text-xs">{opt.label}</p>
                 </button>
               )
             })}
@@ -299,7 +281,10 @@ export function AdminPage({ onLogout }: AdminPageProps) {
           <p><strong>2.</strong> ❤️ <strong>رفع قائمة البنود المنقذة للحياة:</strong> يربط البنود تلقائياً مع المخزون</p>
           <p><strong>3.</strong> 💊 <strong>رفع قائمة المخدرات:</strong> يصنف البنود المخدرة في المخزون</p>
           <p><strong>4.</strong> 💉 <strong>رفع قائمة اللقاحات:</strong> يصنف اللقاحات في المخزون</p>
-          <p><strong>5.</strong> 🛡️ <strong>رفع قائمة البنود الاستراتيجية:</strong> يصنف البنود الاستراتيجية في المخزون</p>
+          <p><strong>5.</strong> 🛡️ <strong>رفع قائمة البنود الاستراتيجية:</strong> يصنف البنود الاستراتيجية</p>
+          <p><strong>6.</strong> 🚬 <strong>رفع قائمة بنود التدخين:</strong> يصنف بنود التدخين</p>
+          <p><strong>7.</strong> 🩺 <strong>رفع قائمة بنود الكلى:</strong> يصنف بنود الكلى</p>
+          <p><strong>8.</strong> 🏢 <strong>رفع قائمة البنود المركزية:</strong> يصنف البنود المركزية</p>
           <p className="text-xs text-gray-500 mt-2">⚠️ يجب رفع ملفات المخزون أولاً، ثم رفع القوائم الخاصة للتصنيف الصحيح</p>
         </CardContent>
       </Card>

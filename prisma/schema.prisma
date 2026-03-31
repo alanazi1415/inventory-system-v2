@@ -25,6 +25,9 @@ model InventoryItem {
   isNarcotic              Boolean  @default(false)
   isVaccine               Boolean  @default(false)
   isStrategic             Boolean  @default(false)
+  isSmoking               Boolean  @default(false)
+  isKidney                Boolean  @default(false)
+  isCentral               Boolean  @default(false)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
@@ -60,6 +63,30 @@ model VaccineItem {
 }
 
 model StrategicItem {
+  id          String   @id @default(cuid())
+  itemNumber  String
+  createdAt   DateTime @default(now())
+  
+  @@index([itemNumber])
+}
+
+model SmokingItem {
+  id          String   @id @default(cuid())
+  itemNumber  String
+  createdAt   DateTime @default(now())
+  
+  @@index([itemNumber])
+}
+
+model KidneyItem {
+  id          String   @id @default(cuid())
+  itemNumber  String
+  createdAt   DateTime @default(now())
+  
+  @@index([itemNumber])
+}
+
+model CentralItem {
   id          String   @id @default(cuid())
   itemNumber  String
   createdAt   DateTime @default(now())

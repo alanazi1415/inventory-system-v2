@@ -11,9 +11,9 @@ import { AdminPage } from '@/components/dashboard/AdminPage'
 import { ReportsPage } from '@/components/dashboard/ReportsPage'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield } from "lucide-react"
+import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2 } from "lucide-react"
 
-type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'life-saving' | 'reports' | 'delivery' | 'vaccines' | 'strategic'
+type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central'
 
 export default function HomePage() {
   const { selectedSystem, showWelcome, setSelectedSystem, setShowWelcome, resetWelcome } = useAppStore()
@@ -51,11 +51,14 @@ export default function HomePage() {
   const handleAdminClick = () => { if (isAdmin) { fetch('/api/auth', { method: 'DELETE' }); setIsAdmin(false); setCurrentPage('home') } else setShowAdminLogin(true) }
   const handleAdminLogin = () => { setShowAdminLogin(false); setIsAdmin(true) }
   const handleCardClick = (cat: string) => {
-    if (cat === 'expired' || cat === 'hold') setCurrentPage('alerts')
+    if (cat === 'hold') setCurrentPage('alerts')
     else if (cat === 'expiring') setCurrentPage('expiring')
     else if (cat === 'life-saving') setCurrentPage('life-saving')
     else if (cat === 'vaccine') setCurrentPage('vaccines')
     else if (cat === 'strategic') setCurrentPage('strategic')
+    else if (cat === 'smoking') setCurrentPage('smoking')
+    else if (cat === 'kidney') setCurrentPage('kidney')
+    else if (cat === 'central') setCurrentPage('central')
     else setCurrentPage('inventory')
   }
 
@@ -83,13 +86,16 @@ export default function HomePage() {
             {loading ? <div className="flex items-center justify-center min-h-64"><p className="text-gray-500">جاري التحميل...</p></div> : stats ? (
               <>
                 <StatsCards stats={stats} onCardClick={handleCardClick} />
-                <div className="grid md:grid-cols-6 gap-4 mt-6">
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('inventory')}><CardContent className="p-4 flex items-center gap-3"><Package className="w-8 h-8 text-blue-500" /><div><p className="font-semibold">المخزون اللحظي</p><p className="text-sm text-gray-500">عرض كل البنود</p></div></CardContent></Card>
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('alerts')}><CardContent className="p-4 flex items-center gap-3"><AlertTriangle className="w-8 h-8 text-red-500" /><div><p className="font-semibold">التنبيهات</p><p className="text-sm text-gray-500">{stats.expiredItems + stats.holdItems} تنبيه</p></div></CardContent></Card>
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('expiring')}><CardContent className="p-4 flex items-center gap-3"><Clock className="w-8 h-8 text-orange-500" /><div><p className="font-semibold">قاربت على الانتهاء</p><p className="text-sm text-gray-500">{stats.expiringItems} بند</p></div></CardContent></Card>
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('life-saving')}><CardContent className="p-4 flex items-center gap-3"><Heart className="w-8 h-8 text-pink-500" /><div><p className="font-semibold">البنود المنقذة للحياة</p><p className="text-sm text-gray-500">{stats.lifeSavingItems} بند</p></div></CardContent></Card>
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('vaccines')}><CardContent className="p-4 flex items-center gap-3"><Syringe className="w-8 h-8 text-green-500" /><div><p className="font-semibold">اللقاحات</p><p className="text-sm text-gray-500">{stats.vaccineItems || 0} بند</p></div></CardContent></Card>
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('strategic')}><CardContent className="p-4 flex items-center gap-3"><Shield className="w-8 h-8 text-amber-500" /><div><p className="font-semibold">البنود الاستراتيجية</p><p className="text-sm text-gray-500">{stats.strategicItems || 0} بند</p></div></CardContent></Card>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3 mt-6">
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('inventory')}><CardContent className="p-3 flex flex-col items-center gap-2"><Package className="w-7 h-7 text-blue-500" /><p className="font-semibold text-sm">المخزون اللحظي</p><p className="text-xs text-gray-500">{stats.totalItems?.toLocaleString('ar-SA') || 0} بند</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('alerts')}><CardContent className="p-3 flex flex-col items-center gap-2"><AlertTriangle className="w-7 h-7 text-red-500" /><p className="font-semibold text-sm">التنبيهات</p><p className="text-xs text-gray-500">{stats.holdItems?.toLocaleString('ar-SA') || 0} بند Hold</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('expiring')}><CardContent className="p-3 flex flex-col items-center gap-2"><Clock className="w-7 h-7 text-orange-500" /><p className="font-semibold text-sm">قاربت على الانتهاء</p><p className="text-xs text-gray-500">{stats.expiringItems || 0} بند</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('life-saving')}><CardContent className="p-3 flex flex-col items-center gap-2"><Heart className="w-7 h-7 text-pink-500" /><p className="font-semibold text-sm">المنقذة للحياة</p><p className="text-xs text-gray-500">{stats.lifeSavingItems || 0} بند</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('vaccines')}><CardContent className="p-3 flex flex-col items-center gap-2"><Syringe className="w-7 h-7 text-green-500" /><p className="font-semibold text-sm">اللقاحات</p><p className="text-xs text-gray-500">{stats.vaccineItems || 0} بند</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('strategic')}><CardContent className="p-3 flex flex-col items-center gap-2"><Shield className="w-7 h-7 text-amber-500" /><p className="font-semibold text-sm">الاستراتيجية</p><p className="text-xs text-gray-500">{stats.strategicItems || 0} بند</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow bg-blue-50" onClick={() => setCurrentPage('smoking')}><CardContent className="p-3 flex flex-col items-center gap-2"><Cigarette className="w-7 h-7 text-blue-600" /><p className="font-semibold text-sm">بنود التدخين</p><p className="text-xs text-gray-500">{stats.smokingItems || 0} بند</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow bg-cyan-50" onClick={() => setCurrentPage('kidney')}><CardContent className="p-3 flex flex-col items-center gap-2"><Droplets className="w-7 h-7 text-cyan-600" /><p className="font-semibold text-sm">بنود الكلى</p><p className="text-xs text-gray-500">{stats.kidneyItems || 0} بند</p></CardContent></Card>
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow bg-slate-50" onClick={() => setCurrentPage('central')}><CardContent className="p-3 flex flex-col items-center gap-2"><Building2 className="w-7 h-7 text-slate-600" /><p className="font-semibold text-sm">البنود المركزية</p><p className="text-xs text-gray-500">{stats.centralItems || 0} بند</p></CardContent></Card>
                 </div>
               </>
             ) : <Card><CardContent className="p-8 text-center"><p className="text-gray-500">لا توجد بيانات. يرجى رفع ملفات Excel من صفحة الأدمن.</p></CardContent></Card>}
@@ -98,8 +104,7 @@ export default function HomePage() {
       case 'inventory': return <div className="p-6"><h2 className="text-2xl font-bold mb-4">المخزون اللحظي</h2><InventoryTable system={selectedSystem} category="all" /></div>
       case 'alerts': return (
         <div className="p-6 space-y-6">
-          <h2 className="text-2xl font-bold flex items-center gap-2"><AlertTriangle className="w-6 h-6 text-red-500" />التنبيهات</h2>
-          <Card><CardHeader><CardTitle className="text-red-600">البنود المنتهية</CardTitle><CardDescription>بنود تجاوز تاريخ انتهاء صلاحيتها</CardDescription></CardHeader><CardContent><InventoryTable system={selectedSystem} category="expired" /></CardContent></Card>
+          <h2 className="text-2xl font-bold flex items-center gap-2"><AlertTriangle className="w-6 h-6 text-yellow-500" />التنبيهات</h2>
           <Card><CardHeader><CardTitle className="text-yellow-600">البنود عليها Hold</CardTitle><CardDescription>بنود محجوبة لأسباب مختلفة</CardDescription></CardHeader><CardContent><InventoryTable system={selectedSystem} category="hold" /></CardContent></Card>
         </div>
       )
@@ -107,6 +112,9 @@ export default function HomePage() {
       case 'life-saving': return <div className="p-6"><h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Heart className="w-6 h-6 text-pink-500" />البنود المنقذة للحياة</h2><InventoryTable system={selectedSystem} category="life_saving" /></div>
       case 'vaccines': return <div className="p-6"><h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Syringe className="w-6 h-6 text-green-500" />اللقاحات</h2><InventoryTable system={selectedSystem} category="vaccine" /></div>
       case 'strategic': return <div className="p-6"><h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Shield className="w-6 h-6 text-amber-500" />البنود الاستراتيجية</h2><InventoryTable system={selectedSystem} category="strategic" /></div>
+      case 'smoking': return <div className="p-6"><h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Cigarette className="w-6 h-6 text-blue-600" />بنود التدخين</h2><InventoryTable system={selectedSystem} category="smoking" /></div>
+      case 'kidney': return <div className="p-6"><h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Droplets className="w-6 h-6 text-cyan-600" />بنود الكلى</h2><InventoryTable system={selectedSystem} category="kidney" /></div>
+      case 'central': return <div className="p-6"><h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><Building2 className="w-6 h-6 text-slate-600" />البنود المركزية</h2><InventoryTable system={selectedSystem} category="central" /></div>
       case 'reports': return <ReportsPage system={selectedSystem} />
       default: return null
     }

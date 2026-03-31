@@ -1,6 +1,6 @@
 'use client'
 import { Button } from "@/components/ui/button"
-import { Home, Package, AlertTriangle, Clock, Heart, Truck, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield } from "lucide-react"
+import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2 } from "lucide-react"
 
 interface SidebarProps { currentPage: string; onPageChange: (page: any) => void; selectedSystem: 'hoz' | 'mwsal' | null; onSystemChange: () => void; isAdmin: boolean; onAdminToggle: () => void }
 
@@ -8,11 +8,14 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
   const menuItems = [
     { id: 'home', label: 'الرئيسية', icon: Home },
     { id: 'inventory', label: 'المخزون اللحظي', icon: Package },
-    { id: 'alerts', label: 'التنبيهات', icon: AlertTriangle },
+    { id: 'alerts', label: 'التنبيهات (Hold)', icon: AlertTriangle },
     { id: 'expiring', label: 'قاربت على الانتهاء', icon: Clock },
     { id: 'life-saving', label: 'البنود المنقذة للحياة', icon: Heart },
     { id: 'vaccines', label: 'اللقاحات', icon: Syringe },
     { id: 'strategic', label: 'البنود الاستراتيجية', icon: Shield },
+    { id: 'smoking', label: 'بنود التدخين', icon: Cigarette },
+    { id: 'kidney', label: 'بنود الكلى', icon: Droplets },
+    { id: 'central', label: 'البنود المركزية', icon: Building2 },
     { id: 'reports', label: 'التقارير', icon: FileText },
   ]
   return (

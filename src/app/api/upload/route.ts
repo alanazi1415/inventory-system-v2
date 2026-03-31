@@ -6,9 +6,25 @@ export const dynamic = 'force-dynamic'
 
 // دالة لإنشاء الجداول إذا لم تكن موجودة
 async function ensureDatabaseTables() {
+  // InventoryItem table
   try {
-    // التحقق من وجود جدول InventoryItem
     await db.$queryRaw`SELECT 1 FROM "InventoryItem" LIMIT 1`
+    // التحقق من الأعمدة الجديدة
+    const columns = await db.$queryRaw<any[]>`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'InventoryItem'
+    `
+    const columnNames = columns.map(c => c.column_name)
+    
+    if (!columnNames.includes('isSmoking')) {
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isSmoking" BOOLEAN NOT NULL DEFAULT false`
+    }
+    if (!columnNames.includes('isKidney')) {
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isKidney" BOOLEAN NOT NULL DEFAULT false`
+    }
+    if (!columnNames.includes('isCentral')) {
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isCentral" BOOLEAN NOT NULL DEFAULT false`
+    }
   } catch {
     console.log('Creating InventoryItem table...')
     await db.$executeRaw`
@@ -30,11 +46,13 @@ async function ensureDatabaseTables() {
         "isNarcotic" BOOLEAN DEFAULT false,
         "isVaccine" BOOLEAN DEFAULT false,
         "isStrategic" BOOLEAN DEFAULT false,
+        "isSmoking" BOOLEAN DEFAULT false,
+        "isKidney" BOOLEAN DEFAULT false,
+        "isCentral" BOOLEAN DEFAULT false,
         "createdAt" TIMESTAMP DEFAULT NOW(),
         "updatedAt" TIMESTAMP DEFAULT NOW()
       )
     `
-    // إنشاء الفهارسات
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_system_idx" ON "InventoryItem" (system)`
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_daysToExpire_idx" ON "InventoryItem" ("daysToExpire")`
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_genericItemNumber_idx" ON "InventoryItem" ("genericItemNumber")`
@@ -42,113 +60,65 @@ async function ensureDatabaseTables() {
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "InventoryItem_tradeItemNumber_idx" ON "InventoryItem" ("tradeItemNumber")`
   }
 
-  // التحقق من وجود جدول LifeSavingItem
-  try {
-    await db.$queryRaw`SELECT 1 FROM "LifeSavingItem" LIMIT 1`
-  } catch {
-    console.log('Creating LifeSavingItem table...')
-    await db.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "LifeSavingItem" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        "itemNumber" TEXT NOT NULL,
-        "createdAt" TIMESTAMP DEFAULT NOW()
-      )
-    `
+  // LifeSavingItem table
+  try { await db.$queryRaw`SELECT 1 FROM "LifeSavingItem" LIMIT 1` } catch {
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "LifeSavingItem" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "itemNumber" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "LifeSavingItem_itemNumber_idx" ON "LifeSavingItem" ("itemNumber")`
   }
 
-  // التحقق من وجود جدول NarcoticItem
-  try {
-    await db.$queryRaw`SELECT 1 FROM "NarcoticItem" LIMIT 1`
-  } catch {
-    console.log('Creating NarcoticItem table...')
-    await db.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "NarcoticItem" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        "itemNumber" TEXT NOT NULL,
-        "createdAt" TIMESTAMP DEFAULT NOW()
-      )
-    `
+  // NarcoticItem table
+  try { await db.$queryRaw`SELECT 1 FROM "NarcoticItem" LIMIT 1` } catch {
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "NarcoticItem" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "itemNumber" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "NarcoticItem_itemNumber_idx" ON "NarcoticItem" ("itemNumber")`
   }
 
-  // التحقق من وجود جدول VaccineItem
-  try {
-    await db.$queryRaw`SELECT 1 FROM "VaccineItem" LIMIT 1`
-  } catch {
-    console.log('Creating VaccineItem table...')
-    await db.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "VaccineItem" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        "itemNumber" TEXT NOT NULL,
-        "createdAt" TIMESTAMP DEFAULT NOW()
-      )
-    `
+  // VaccineItem table
+  try { await db.$queryRaw`SELECT 1 FROM "VaccineItem" LIMIT 1` } catch {
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "VaccineItem" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "itemNumber" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "VaccineItem_itemNumber_idx" ON "VaccineItem" ("itemNumber")`
   }
 
-  // التحقق من وجود جدول StrategicItem
-  try {
-    await db.$queryRaw`SELECT 1 FROM "StrategicItem" LIMIT 1`
-  } catch {
-    console.log('Creating StrategicItem table...')
-    await db.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "StrategicItem" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        "itemNumber" TEXT NOT NULL,
-        "createdAt" TIMESTAMP DEFAULT NOW()
-      )
-    `
+  // StrategicItem table
+  try { await db.$queryRaw`SELECT 1 FROM "StrategicItem" LIMIT 1` } catch {
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "StrategicItem" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "itemNumber" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "StrategicItem_itemNumber_idx" ON "StrategicItem" ("itemNumber")`
   }
 
-  // التحقق من وجود جدول VisitorLog
-  try {
-    await db.$queryRaw`SELECT 1 FROM "VisitorLog" LIMIT 1`
-  } catch {
-    console.log('Creating VisitorLog table...')
-    await db.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "VisitorLog" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        "sessionId" TEXT NOT NULL,
-        page TEXT NOT NULL,
-        system TEXT,
-        "visitedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-        "ipAddress" TEXT
-      )
-    `
+  // SmokingItem table (جديد)
+  try { await db.$queryRaw`SELECT 1 FROM "SmokingItem" LIMIT 1` } catch {
+    console.log('Creating SmokingItem table...')
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "SmokingItem" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "itemNumber" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "SmokingItem_itemNumber_idx" ON "SmokingItem" ("itemNumber")`
+  }
+
+  // KidneyItem table (جديد)
+  try { await db.$queryRaw`SELECT 1 FROM "KidneyItem" LIMIT 1` } catch {
+    console.log('Creating KidneyItem table...')
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "KidneyItem" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "itemNumber" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "KidneyItem_itemNumber_idx" ON "KidneyItem" ("itemNumber")`
+  }
+
+  // CentralItem table (جديد)
+  try { await db.$queryRaw`SELECT 1 FROM "CentralItem" LIMIT 1` } catch {
+    console.log('Creating CentralItem table...')
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "CentralItem" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "itemNumber" TEXT NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`
+    await db.$executeRaw`CREATE INDEX IF NOT EXISTS "CentralItem_itemNumber_idx" ON "CentralItem" ("itemNumber")`
+  }
+
+  // VisitorLog table
+  try { await db.$queryRaw`SELECT 1 FROM "VisitorLog" LIMIT 1` } catch {
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "VisitorLog" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "sessionId" TEXT NOT NULL, page TEXT NOT NULL, system TEXT, "visitedAt" TIMESTAMP NOT NULL DEFAULT NOW(), "ipAddress" TEXT)`
     await db.$executeRaw`CREATE INDEX IF NOT EXISTS "VisitorLog_visitedAt_idx" ON "VisitorLog" ("visitedAt")`
   }
 
-  // التحقق من وجود جدول UploadLog
-  try {
-    await db.$queryRaw`SELECT 1 FROM "UploadLog" LIMIT 1`
-  } catch {
-    console.log('Creating UploadLog table...')
-    await db.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "UploadLog" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        "fileName" TEXT NOT NULL,
-        system TEXT NOT NULL,
-        "recordsCount" INTEGER DEFAULT 0,
-        "createdAt" TIMESTAMP DEFAULT NOW()
-      )
-    `
+  // UploadLog table
+  try { await db.$queryRaw`SELECT 1 FROM "UploadLog" LIMIT 1` } catch {
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "UploadLog" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), "fileName" TEXT NOT NULL, system TEXT NOT NULL, "recordsCount" INTEGER DEFAULT 0, "createdAt" TIMESTAMP DEFAULT NOW())`
   }
 
-  // التحقق من وجود جدول AdminSession
-  try {
-    await db.$queryRaw`SELECT 1 FROM "AdminSession" LIMIT 1`
-  } catch {
-    console.log('Creating AdminSession table...')
-    await db.$executeRaw`
-      CREATE TABLE IF NOT EXISTS "AdminSession" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        token TEXT UNIQUE NOT NULL,
-        "createdAt" TIMESTAMP DEFAULT NOW(),
-        "expiresAt" TIMESTAMP NOT NULL
-      )
-    `
+  // AdminSession table
+  try { await db.$queryRaw`SELECT 1 FROM "AdminSession" LIMIT 1` } catch {
+    await db.$executeRaw`CREATE TABLE IF NOT EXISTS "AdminSession" (id TEXT PRIMARY KEY DEFAULT gen_random_uuid(), token TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW(), "expiresAt" TIMESTAMP NOT NULL)`
   }
 
   console.log('All tables verified/created successfully')
@@ -204,9 +174,52 @@ async function checkAuth() {
   }
 }
 
+// Helper function to process special items list
+async function processSpecialItems(
+  system: string,
+  data: any[],
+  model: any,
+  fieldName: string
+) {
+  await (db as any)[model].deleteMany()
+  
+  const insertedItems = new Set<string>()
+  let recordsCount = 0
+  
+  for (const row of data) {
+    const genericNum = safeString(row['Generic Item Number'])
+    const customerCode = safeString(row['Customer Item Code'])
+    
+    if (genericNum && !insertedItems.has(genericNum)) {
+      await (db as any)[model].create({ data: { itemNumber: genericNum } })
+      insertedItems.add(genericNum)
+      recordsCount++
+    }
+    if (customerCode && !insertedItems.has(customerCode)) {
+      await (db as any)[model].create({ data: { itemNumber: customerCode } })
+      insertedItems.add(customerCode)
+    }
+  }
+
+  const allNumbers = Array.from(insertedItems)
+  if (allNumbers.length > 0) {
+    await db.inventoryItem.updateMany({
+      where: {
+        OR: [
+          { genericItemNumber: { in: allNumbers } },
+          { customerItemNumber: { in: allNumbers } },
+          { tradeItemNumber: { in: allNumbers } }
+        ]
+      },
+      data: { [fieldName]: true }
+    })
+  }
+  
+  return recordsCount
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // التأكد من وجود جميع الجداول في قاعدة البيانات
     await ensureDatabaseTables()
 
     const isAuth = await checkAuth()
@@ -229,30 +242,26 @@ export async function POST(request: NextRequest) {
     console.log('Upload started:', { system, fileName: file.name, rows: (data as any[]).length })
 
     if (system === 'hoz' || system === 'mwsal') {
-      // Delete old data for this system
       await db.inventoryItem.deleteMany({ where: { system } })
 
-      // التحقق من وجود عمود isStrategic وإضافته إذا لم يكن موجوداً
-      try {
-        await db.$executeRaw`SELECT "isStrategic" FROM "InventoryItem" LIMIT 1`
-      } catch {
-        console.log('Adding isStrategic column...')
-        await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isStrategic" BOOLEAN NOT NULL DEFAULT false`
-      }
-
-      // Get special items lists
-      const [lifeSaving, narcotic, vaccine, strategic] = await Promise.all([
+      // Get all special items lists
+      const [lifeSaving, narcotic, vaccine, strategic, smoking, kidney, central] = await Promise.all([
         db.lifeSavingItem.findMany().catch(() => []),
         db.narcoticItem.findMany().catch(() => []),
         db.vaccineItem.findMany().catch(() => []),
-        db.strategicItem.findMany().catch(() => [])
+        db.strategicItem.findMany().catch(() => []),
+        db.$queryRaw<any[]>`SELECT * FROM "SmokingItem"`.catch(() => []),
+        db.$queryRaw<any[]>`SELECT * FROM "KidneyItem"`.catch(() => []),
+        db.$queryRaw<any[]>`SELECT * FROM "CentralItem"`.catch(() => []),
       ])
 
-      // Create lookup sets
       const lifeSavingSet = new Set(lifeSaving.map(i => i.itemNumber))
       const narcoticSet = new Set(narcotic.map(i => i.itemNumber))
       const vaccineSet = new Set(vaccine.map(i => i.itemNumber))
       const strategicSet = new Set(strategic.map(i => i.itemNumber))
+      const smokingSet = new Set(smoking.map(i => i.itemNumber))
+      const kidneySet = new Set(kidney.map(i => i.itemNumber))
+      const centralSet = new Set(central.map(i => i.itemNumber))
 
       const items = (data as any[]).map(row => {
         const genericNum = safeString(row['Generic Item Number'])
@@ -271,20 +280,6 @@ export async function POST(request: NextRequest) {
         const expiryDate = formatDate(bbd)
         const daysToExpire = calculateDaysFromBBD(bbd)
 
-        // Check if item is in special lists (by generic number or customer code)
-        const isLifeSaving = lifeSavingSet.has(genericNum || '') || 
-                            lifeSavingSet.has(customerCode || '') ||
-                            lifeSavingSet.has(tradeNum || '')
-        const isNarcotic = narcoticSet.has(genericNum || '') || 
-                          narcoticSet.has(customerCode || '') ||
-                          narcoticSet.has(tradeNum || '')
-        const isVaccine = vaccineSet.has(genericNum || '') || 
-                         vaccineSet.has(customerCode || '') ||
-                         vaccineSet.has(tradeNum || '')
-        const isStrategic = strategicSet.has(genericNum || '') || 
-                           strategicSet.has(customerCode || '') ||
-                           strategicSet.has(tradeNum || '')
-
         return {
           system,
           genericItemNumber: genericNum,
@@ -298,14 +293,16 @@ export async function POST(request: NextRequest) {
           daysToExpire,
           hold: holdValue,
           holdType: isOnHold ? holdType : null,
-          isLifeSaving,
-          isNarcotic,
-          isVaccine,
-          isStrategic,
+          isLifeSaving: lifeSavingSet.has(genericNum || '') || lifeSavingSet.has(customerCode || '') || lifeSavingSet.has(tradeNum || ''),
+          isNarcotic: narcoticSet.has(genericNum || '') || narcoticSet.has(customerCode || '') || narcoticSet.has(tradeNum || ''),
+          isVaccine: vaccineSet.has(genericNum || '') || vaccineSet.has(customerCode || '') || vaccineSet.has(tradeNum || ''),
+          isStrategic: strategicSet.has(genericNum || '') || strategicSet.has(customerCode || '') || strategicSet.has(tradeNum || ''),
+          isSmoking: smokingSet.has(genericNum || '') || smokingSet.has(customerCode || '') || smokingSet.has(tradeNum || ''),
+          isKidney: kidneySet.has(genericNum || '') || kidneySet.has(customerCode || '') || kidneySet.has(tradeNum || ''),
+          isCentral: centralSet.has(genericNum || '') || centralSet.has(customerCode || '') || centralSet.has(tradeNum || ''),
         }
       })
 
-      // Insert in batches
       const batchSize = 500
       for (let i = 0; i < items.length; i += batchSize) {
         const batch = items.slice(i, i + batchSize)
@@ -314,80 +311,16 @@ export async function POST(request: NextRequest) {
       recordsCount = items.length
 
     } else if (system === 'life_saving') {
-      await db.lifeSavingItem.deleteMany()
-      
-      const rows = data as any[]
-      const insertedItems = new Set<string>()
-      
-      for (const row of rows) {
-        const genericNum = safeString(row['Generic Item Number'])
-        const customerCode = safeString(row['Customer Item Code'])
-        
-        // Store both Generic Item Number and Customer Code
-        if (genericNum && !insertedItems.has(genericNum)) {
-          await db.lifeSavingItem.create({ data: { itemNumber: genericNum } })
-          insertedItems.add(genericNum)
-          recordsCount++
-        }
-        if (customerCode && !insertedItems.has(customerCode)) {
-          await db.lifeSavingItem.create({ data: { itemNumber: customerCode } })
-          insertedItems.add(customerCode)
-        }
-      }
-
-      // Update matching inventory items
-      const allNumbers = Array.from(insertedItems)
-      if (allNumbers.length > 0) {
-        await db.inventoryItem.updateMany({
-          where: {
-            OR: [
-              { genericItemNumber: { in: allNumbers } },
-              { customerItemNumber: { in: allNumbers } },
-              { tradeItemNumber: { in: allNumbers } }
-            ]
-          },
-          data: { isLifeSaving: true }
-        })
-      }
-
+      recordsCount = await processSpecialItems(system, data as any[], 'lifeSavingItem', 'isLifeSaving')
     } else if (system === 'narcotic') {
-      await db.narcoticItem.deleteMany()
-      
-      const rows = data as any[]
-      const insertedItems = new Set<string>()
-      
-      for (const row of rows) {
-        const genericNum = safeString(row['Generic Item Number'])
-        const customerCode = safeString(row['Customer Item Code'])
-        
-        if (genericNum && !insertedItems.has(genericNum)) {
-          await db.narcoticItem.create({ data: { itemNumber: genericNum } })
-          insertedItems.add(genericNum)
-          recordsCount++
-        }
-        if (customerCode && !insertedItems.has(customerCode)) {
-          await db.narcoticItem.create({ data: { itemNumber: customerCode } })
-          insertedItems.add(customerCode)
-        }
-      }
-
-      const allNumbers = Array.from(insertedItems)
-      if (allNumbers.length > 0) {
-        await db.inventoryItem.updateMany({
-          where: {
-            OR: [
-              { genericItemNumber: { in: allNumbers } },
-              { customerItemNumber: { in: allNumbers } },
-              { tradeItemNumber: { in: allNumbers } }
-            ]
-          },
-          data: { isNarcotic: true }
-        })
-      }
-
+      recordsCount = await processSpecialItems(system, data as any[], 'narcoticItem', 'isNarcotic')
     } else if (system === 'vaccine') {
-      await db.vaccineItem.deleteMany()
-      
+      recordsCount = await processSpecialItems(system, data as any[], 'vaccineItem', 'isVaccine')
+    } else if (system === 'strategic') {
+      recordsCount = await processSpecialItems(system, data as any[], 'strategicItem', 'isStrategic')
+    } else if (system === 'smoking') {
+      // بنود التدخين
+      await db.$executeRaw`DELETE FROM "SmokingItem"`
       const rows = data as any[]
       const insertedItems = new Set<string>()
       
@@ -396,12 +329,12 @@ export async function POST(request: NextRequest) {
         const customerCode = safeString(row['Customer Item Code'])
         
         if (genericNum && !insertedItems.has(genericNum)) {
-          await db.vaccineItem.create({ data: { itemNumber: genericNum } })
+          await db.$executeRaw`INSERT INTO "SmokingItem" (id, "itemNumber", "createdAt") VALUES (gen_random_uuid(), ${genericNum}, NOW())`
           insertedItems.add(genericNum)
           recordsCount++
         }
         if (customerCode && !insertedItems.has(customerCode)) {
-          await db.vaccineItem.create({ data: { itemNumber: customerCode } })
+          await db.$executeRaw`INSERT INTO "SmokingItem" (id, "itemNumber", "createdAt") VALUES (gen_random_uuid(), ${customerCode}, NOW())`
           insertedItems.add(customerCode)
         }
       }
@@ -416,13 +349,12 @@ export async function POST(request: NextRequest) {
               { tradeItemNumber: { in: allNumbers } }
             ]
           },
-          data: { isVaccine: true }
+          data: { isSmoking: true }
         })
       }
-
-    } else if (system === 'strategic') {
-      await db.strategicItem.deleteMany()
-      
+    } else if (system === 'kidney') {
+      // بنود الكلى
+      await db.$executeRaw`DELETE FROM "KidneyItem"`
       const rows = data as any[]
       const insertedItems = new Set<string>()
       
@@ -431,12 +363,12 @@ export async function POST(request: NextRequest) {
         const customerCode = safeString(row['Customer Item Code'])
         
         if (genericNum && !insertedItems.has(genericNum)) {
-          await db.strategicItem.create({ data: { itemNumber: genericNum } })
+          await db.$executeRaw`INSERT INTO "KidneyItem" (id, "itemNumber", "createdAt") VALUES (gen_random_uuid(), ${genericNum}, NOW())`
           insertedItems.add(genericNum)
           recordsCount++
         }
         if (customerCode && !insertedItems.has(customerCode)) {
-          await db.strategicItem.create({ data: { itemNumber: customerCode } })
+          await db.$executeRaw`INSERT INTO "KidneyItem" (id, "itemNumber", "createdAt") VALUES (gen_random_uuid(), ${customerCode}, NOW())`
           insertedItems.add(customerCode)
         }
       }
@@ -451,12 +383,45 @@ export async function POST(request: NextRequest) {
               { tradeItemNumber: { in: allNumbers } }
             ]
           },
-          data: { isStrategic: true }
+          data: { isKidney: true }
+        })
+      }
+    } else if (system === 'central') {
+      // البنود المركزية
+      await db.$executeRaw`DELETE FROM "CentralItem"`
+      const rows = data as any[]
+      const insertedItems = new Set<string>()
+      
+      for (const row of rows) {
+        const genericNum = safeString(row['Generic Item Number'])
+        const customerCode = safeString(row['Customer Item Code'])
+        
+        if (genericNum && !insertedItems.has(genericNum)) {
+          await db.$executeRaw`INSERT INTO "CentralItem" (id, "itemNumber", "createdAt") VALUES (gen_random_uuid(), ${genericNum}, NOW())`
+          insertedItems.add(genericNum)
+          recordsCount++
+        }
+        if (customerCode && !insertedItems.has(customerCode)) {
+          await db.$executeRaw`INSERT INTO "CentralItem" (id, "itemNumber", "createdAt") VALUES (gen_random_uuid(), ${customerCode}, NOW())`
+          insertedItems.add(customerCode)
+        }
+      }
+
+      const allNumbers = Array.from(insertedItems)
+      if (allNumbers.length > 0) {
+        await db.inventoryItem.updateMany({
+          where: {
+            OR: [
+              { genericItemNumber: { in: allNumbers } },
+              { customerItemNumber: { in: allNumbers } },
+              { tradeItemNumber: { in: allNumbers } }
+            ]
+          },
+          data: { isCentral: true }
         })
       }
     }
 
-    // Log upload
     await db.uploadLog.create({ 
       data: { fileName: file.name, system, recordsCount } 
     }).catch(() => {})

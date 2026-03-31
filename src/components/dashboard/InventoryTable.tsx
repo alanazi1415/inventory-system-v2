@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, ChevronLeft, ChevronRight, Heart, Ban, AlertTriangle, Syringe, Shield, Download } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Heart, Ban, AlertTriangle, Syringe, Shield, Download, Cigarette, Droplets, Building2 } from "lucide-react"
 
 interface InventoryItem {
   id: string
@@ -25,6 +25,9 @@ interface InventoryItem {
   isNarcotic: boolean
   isVaccine: boolean
   isStrategic: boolean
+  isSmoking: boolean
+  isKidney: boolean
+  isCentral: boolean
 }
 
 interface InventoryTableProps {
@@ -121,6 +124,9 @@ export function InventoryTable({ system, category = 'all' }: InventoryTableProps
     if (item.isNarcotic) badges.push(<span key="n" title="مخدر"><Ban className="w-4 h-4 text-purple-500" /></span>)
     if (item.isVaccine) badges.push(<span key="v" title="لقاح"><Syringe className="w-4 h-4 text-green-500" /></span>)
     if (item.isStrategic) badges.push(<span key="s" title="استراتيجي"><Shield className="w-4 h-4 text-amber-500" /></span>)
+    if (item.isSmoking) badges.push(<span key="sm" title="بنود التدخين"><Cigarette className="w-4 h-4 text-blue-600" /></span>)
+    if (item.isKidney) badges.push(<span key="k" title="بنود الكلى"><Droplets className="w-4 h-4 text-cyan-600" /></span>)
+    if (item.isCentral) badges.push(<span key="c" title="بنود مركزية"><Building2 className="w-4 h-4 text-slate-600" /></span>)
     return badges
   }
 

@@ -6,12 +6,14 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    // التحقق من وجود عمود isStrategic وإضافته إذا لم يكن موجوداً
+    // التحقق من الأعمدة الجديدة
     try {
-      await db.$executeRaw`SELECT "isStrategic" FROM "InventoryItem" LIMIT 1`
+      await db.$executeRaw`SELECT "isSmoking", "isKidney", "isCentral" FROM "InventoryItem" LIMIT 1`
     } catch {
-      console.log('Adding isStrategic column...')
-      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isStrategic" BOOLEAN NOT NULL DEFAULT false`
+      console.log('Adding new columns...')
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isSmoking" BOOLEAN NOT NULL DEFAULT false`
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isKidney" BOOLEAN NOT NULL DEFAULT false`
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isCentral" BOOLEAN NOT NULL DEFAULT false`
     }
 
     const { searchParams } = new URL(request.url)
@@ -39,6 +41,10 @@ export async function GET(request: NextRequest) {
 
     // Category filters
     switch (category) {
+      case 'all':
+        // استبعاد البنود المنتهية من العرض الافتراضي
+        where.daysToExpire = { gt: 0 }
+        break
       case 'expired':
         where.daysToExpire = { lte: 0 }
         break
@@ -59,6 +65,15 @@ export async function GET(request: NextRequest) {
         break
       case 'strategic':
         where.isStrategic = true
+        break
+      case 'smoking':
+        where.isSmoking = true
+        break
+      case 'kidney':
+        where.isKidney = true
+        break
+      case 'central':
+        where.isCentral = true
         break
     }
 

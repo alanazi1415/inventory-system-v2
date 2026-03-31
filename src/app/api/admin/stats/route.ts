@@ -10,7 +10,7 @@ export async function GET() {
     // Basic counts
     const totalVisits = await db.visitorLog.count().catch(() => 0)
 
-    // حساب زيارات اليوم باستخدام visitedAt (اسم العمود الفعلي في قاعدة البيانات)
+    // حساب زيارات اليوم
     const now = new Date()
     const saudiOffset = 3 * 60 * 60 * 1000
     const saudiNow = new Date(now.getTime() + saudiOffset)
@@ -27,25 +27,25 @@ export async function GET() {
       console.log('visitedAt query failed, using total visits')
     }
     
-    // Inventory counts
-    const hozItems = await db.inventoryItem.count({ where: { system: 'hoz' } }).catch(() => 0)
-    const mwsalItems = await db.inventoryItem.count({ where: { system: 'mwsal' } }).catch(() => 0)
+    // Inventory counts - بدون البنود المنتهية
+    const hozItems = await db.inventoryItem.count({ where: { system: 'hoz', daysToExpire: { gt: 0 } } }).catch(() => 0)
+    const mwsalItems = await db.inventoryItem.count({ where: { system: 'mwsal', daysToExpire: { gt: 0 } } }).catch(() => 0)
     
     // Hold items
-    const hozHoldItems = await db.inventoryItem.count({ where: { system: 'hoz', holdQty: { gt: 0 } } }).catch(() => 0)
-    const mwsalHoldItems = await db.inventoryItem.count({ where: { system: 'mwsal', holdQty: { gt: 0 } } }).catch(() => 0)
+    const hozHoldItems = await db.inventoryItem.count({ where: { system: 'hoz', daysToExpire: { gt: 0 }, holdQty: { gt: 0 } } }).catch(() => 0)
+    const mwsalHoldItems = await db.inventoryItem.count({ where: { system: 'mwsal', daysToExpire: { gt: 0 }, holdQty: { gt: 0 } } }).catch(() => 0)
     
     // Hold Types
     const hozHoldTypes = await db.inventoryItem.groupBy({
       by: ['holdType'],
-      where: { system: 'hoz', holdQty: { gt: 0 } },
+      where: { system: 'hoz', daysToExpire: { gt: 0 }, holdQty: { gt: 0 } },
       _count: { id: true },
       _sum: { holdQty: true }
     }).catch(() => [])
 
     const mwsalHoldTypes = await db.inventoryItem.groupBy({
       by: ['holdType'],
-      where: { system: 'mwsal', holdQty: { gt: 0 } },
+      where: { system: 'mwsal', daysToExpire: { gt: 0 }, holdQty: { gt: 0 } },
       _count: { id: true },
       _sum: { holdQty: true }
     }).catch(() => [])
@@ -56,13 +56,28 @@ export async function GET() {
     const vaccineCount = await db.vaccineItem.count().catch(() => 0)
     const strategicCount = await db.strategicItem.count().catch(() => 0)
     
-    // Items marked as special in inventory
-    const lifeSavingInHoz = await db.inventoryItem.count({ where: { system: 'hoz', isLifeSaving: true } }).catch(() => 0)
-    const lifeSavingInMwsal = await db.inventoryItem.count({ where: { system: 'mwsal', isLifeSaving: true } }).catch(() => 0)
+    // New categories counts
+    let smokingCount = 0
+    let kidneyCount = 0
+    let centralCount = 0
+    try {
+      const smokingResult = await db.$queryRaw<any[]>`SELECT COUNT(*)::int as count FROM "SmokingItem"`
+      smokingCount = smokingResult[0]?.count || 0
+    } catch {}
+    try {
+      const kidneyResult = await db.$queryRaw<any[]>`SELECT COUNT(*)::int as count FROM "KidneyItem"`
+      kidneyCount = kidneyResult[0]?.count || 0
+    } catch {}
+    try {
+      const centralResult = await db.$queryRaw<any[]>`SELECT COUNT(*)::int as count FROM "CentralItem"`
+      centralCount = centralResult[0]?.count || 0
+    } catch {}
     
-    // Expiry stats
-    const hozExpired = await db.inventoryItem.count({ where: { system: 'hoz', daysToExpire: { lte: 0 } } }).catch(() => 0)
-    const mwsalExpired = await db.inventoryItem.count({ where: { system: 'mwsal', daysToExpire: { lte: 0 } } }).catch(() => 0)
+    // Items marked as special in inventory
+    const lifeSavingInHoz = await db.inventoryItem.count({ where: { system: 'hoz', daysToExpire: { gt: 0 }, isLifeSaving: true } }).catch(() => 0)
+    const lifeSavingInMwsal = await db.inventoryItem.count({ where: { system: 'mwsal', daysToExpire: { gt: 0 }, isLifeSaving: true } }).catch(() => 0)
+    
+    // Expiry stats - فقط غير المنتهية
     const hozExpiring = await db.inventoryItem.count({ where: { system: 'hoz', daysToExpire: { gt: 0, lte: 90 } } }).catch(() => 0)
     const mwsalExpiring = await db.inventoryItem.count({ where: { system: 'mwsal', daysToExpire: { gt: 0, lte: 90 } } }).catch(() => 0)
 
@@ -90,10 +105,11 @@ export async function GET() {
       narcoticCount,
       vaccineCount,
       strategicCount,
+      smokingCount,
+      kidneyCount,
+      centralCount,
       lifeSavingInHoz,
       lifeSavingInMwsal,
-      hozExpired,
-      mwsalExpired,
       hozExpiring,
       mwsalExpiring,
       lastUpload: lastUpload ? {
@@ -121,10 +137,11 @@ export async function GET() {
       narcoticCount: 0,
       vaccineCount: 0,
       strategicCount: 0,
+      smokingCount: 0,
+      kidneyCount: 0,
+      centralCount: 0,
       lifeSavingInHoz: 0,
       lifeSavingInMwsal: 0,
-      hozExpired: 0,
-      mwsalExpired: 0,
       hozExpiring: 0,
       mwsalExpiring: 0,
       lastUpload: null

@@ -10,18 +10,24 @@ export async function GET(request: NextRequest) {
     const system = searchParams.get('system') || 'hoz'
     const category = searchParams.get('category') || 'all'
 
-    // التحقق من وجود عمود isStrategic وإضافته إذا لم يكن موجوداً
+    // التحقق من الأعمدة الجديدة
     try {
-      await db.$executeRaw`SELECT "isStrategic" FROM "InventoryItem" LIMIT 1`
+      await db.$executeRaw`SELECT "isSmoking", "isKidney", "isCentral" FROM "InventoryItem" LIMIT 1`
     } catch {
-      console.log('Adding isStrategic column...')
-      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isStrategic" BOOLEAN NOT NULL DEFAULT false`
+      console.log('Adding new columns...')
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isSmoking" BOOLEAN NOT NULL DEFAULT false`
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isKidney" BOOLEAN NOT NULL DEFAULT false`
+      await db.$executeRaw`ALTER TABLE "InventoryItem" ADD COLUMN IF NOT EXISTS "isCentral" BOOLEAN NOT NULL DEFAULT false`
     }
 
     // Build where clause
     const where: any = { system }
 
     switch (category) {
+      case 'all':
+        // استبعاد البنود المنتهية
+        where.daysToExpire = { gt: 0 }
+        break
       case 'expired':
         where.daysToExpire = { lte: 0 }
         break
@@ -43,6 +49,15 @@ export async function GET(request: NextRequest) {
       case 'strategic':
         where.isStrategic = true
         break
+      case 'smoking':
+        where.isSmoking = true
+        break
+      case 'kidney':
+        where.isKidney = true
+        break
+      case 'central':
+        where.isCentral = true
+        break
     }
 
     // Fetch all items (no pagination for export)
@@ -52,7 +67,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Prepare data for Excel
-    const excelData = items.map((item, index) => ({
+    const excelData = items.map((item: any, index) => ({
       '#': index + 1,
       'رقم نوبكو': item.genericItemNumber || '',
       'الوصف': item.genericItemDescription || '',
@@ -72,6 +87,9 @@ export async function GET(request: NextRequest) {
       'مخدر': item.isNarcotic ? 'نعم' : 'لا',
       'لقاح': item.isVaccine ? 'نعم' : 'لا',
       'استراتيجي': item.isStrategic ? 'نعم' : 'لا',
+      'تدخين': item.isSmoking ? 'نعم' : 'لا',
+      'كلى': item.isKidney ? 'نعم' : 'لا',
+      'مركزي': item.isCentral ? 'نعم' : 'لا',
     }))
 
     // Create workbook
@@ -96,6 +114,9 @@ export async function GET(request: NextRequest) {
       { wch: 10 },  // مخدر
       { wch: 10 },  // لقاح
       { wch: 12 },  // استراتيجي
+      { wch: 10 },  // تدخين
+      { wch: 10 },  // كلى
+      { wch: 10 },  // مركزي
     ]
 
     xlsx.utils.book_append_sheet(workbook, worksheet, 'المخزون')
@@ -113,6 +134,9 @@ export async function GET(request: NextRequest) {
       'narcotic': 'المخدرات',
       'vaccine': 'اللقاحات',
       'strategic': 'البنود_الاستراتيجية',
+      'smoking': 'بنود_التدخين',
+      'kidney': 'بنود_الكلى',
+      'central': 'البنود_المركزية',
     }
     const systemName = system === 'hoz' ? 'هوز' : 'موصول'
     const categoryName = categoryNames[category] || category
