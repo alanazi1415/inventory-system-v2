@@ -8,7 +8,9 @@ export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json()
     
-    if (username === 'admin' && password === 'admin123') {
+    const adminPassword = process.env.ADMIN_PASSWORD || '123258'
+    
+    if (username === 'admin' && password === adminPassword) {
       const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
       
