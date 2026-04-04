@@ -2,6 +2,21 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Clock, Package, Heart, Ban, Syringe, Info } from "lucide-react"
 
+interface UserPermissions {
+  canViewInventory?: boolean
+  canViewAlerts?: boolean
+  canViewExpiring?: boolean
+  canViewLifeSaving?: boolean
+  canViewVaccines?: boolean
+  canViewStrategic?: boolean
+  canViewSmoking?: boolean
+  canViewKidney?: boolean
+  canViewCentral?: boolean
+  canViewReports?: boolean
+  canViewHoz?: boolean
+  canViewMwsal?: boolean
+}
+
 interface StatsCardsProps { 
   stats: { 
     totalItems?: number
@@ -12,17 +27,24 @@ interface StatsCardsProps {
     vaccineItems?: number
     holdTypes?: { type: string; count: number; qty: number }[]
   }
-  onCardClick: (cat: string) => void 
+  onCardClick: (cat: string) => void
+  permissions?: UserPermissions | null
 }
 
-export function StatsCards({ stats, onCardClick }: StatsCardsProps) {
-  const cards = [
-    { id: 'total', label: 'إجمالي البنود', value: stats?.totalItems ?? 0, icon: Package, color: 'text-blue-500', bgColor: 'bg-blue-50', clickable: false },
-    { id: 'expiring', label: 'قاربت على الانتهاء', value: stats?.expiringItems ?? 0, icon: Clock, color: 'text-orange-500', bgColor: 'bg-orange-50', clickable: true },
-    { id: 'hold', label: 'البنود عليها Hold', value: stats?.holdItems ?? 0, icon: Ban, color: 'text-yellow-600', bgColor: 'bg-yellow-50', clickable: true },
-    { id: 'life-saving', label: 'البنود المنقذة للحياة', value: stats?.lifeSavingItems ?? 0, icon: Heart, color: 'text-pink-500', bgColor: 'bg-pink-50', clickable: true },
-    { id: 'vaccine', label: 'اللقاحات', value: stats?.vaccineItems ?? 0, icon: Syringe, color: 'text-green-500', bgColor: 'bg-green-50', clickable: true },
+export function StatsCards({ stats, onCardClick, permissions }: StatsCardsProps) {
+  const allCards = [
+    { id: 'total', label: 'إجمالي البنود', value: stats?.totalItems ?? 0, icon: Package, color: 'text-blue-500', bgColor: 'bg-blue-50', clickable: false, perm: null },
+    { id: 'expiring', label: 'قاربت على الانتهاء', value: stats?.expiringItems ?? 0, icon: Clock, color: 'text-orange-500', bgColor: 'bg-orange-50', clickable: true, perm: 'canViewExpiring' as keyof UserPermissions },
+    { id: 'hold', label: 'البنود عليها Hold', value: stats?.holdItems ?? 0, icon: Ban, color: 'text-yellow-600', bgColor: 'bg-yellow-50', clickable: true, perm: 'canViewAlerts' as keyof UserPermissions },
+    { id: 'life-saving', label: 'البنود المنقذة للحياة', value: stats?.lifeSavingItems ?? 0, icon: Heart, color: 'text-pink-500', bgColor: 'bg-pink-50', clickable: true, perm: 'canViewLifeSaving' as keyof UserPermissions },
+    { id: 'vaccine', label: 'اللقاحات', value: stats?.vaccineItems ?? 0, icon: Syringe, color: 'text-green-500', bgColor: 'bg-green-50', clickable: true, perm: 'canViewVaccines' as keyof UserPermissions },
   ]
+
+  // فلترة البطاقات بناءً على الصلاحيات
+  const cards = allCards.filter(card => {
+    if (card.perm === null) return true
+    return permissions?.[card.perm] ?? true
+  })
 
   return (
     <div className="space-y-4">
@@ -51,7 +73,7 @@ export function StatsCards({ stats, onCardClick }: StatsCardsProps) {
       </div>
 
       {/* Hold Types Distribution */}
-      {stats?.holdTypes && stats.holdTypes.length > 0 && (
+      {stats?.holdTypes && stats.holdTypes.length > 0 && permissions?.canViewAlerts !== false && (
         <Card className="bg-yellow-50 border-yellow-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">

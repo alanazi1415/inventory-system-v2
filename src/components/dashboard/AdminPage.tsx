@@ -6,9 +6,12 @@ import { Badge } from "@/components/ui/badge"
 import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-interface AdminPageProps { onLogout: () => void }
+interface AdminPageProps { 
+  onLogout: () => void
+  onManageUsers?: () => void
+}
 
-export function AdminPage({ onLogout }: AdminPageProps) {
+export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -82,9 +85,17 @@ export function AdminPage({ onLogout }: AdminPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">لوحة تحكم الأدمن</h1>
-          <p className="text-gray-500">إدارة البيانات والملفات</p>
+          <p className="text-gray-500">إدارة البيانات والملفات والمستخدمين</p>
         </div>
-        <Button variant="outline" onClick={onLogout}>تسجيل الخروج</Button>
+        <div className="flex gap-2">
+          {onManageUsers && (
+            <Button variant="outline" onClick={onManageUsers}>
+              <Users className="w-4 h-4 ml-2" />
+              إدارة المستخدمين
+            </Button>
+          )}
+          <Button variant="outline" onClick={onLogout}>تسجيل الخروج</Button>
+        </div>
       </div>
 
       {/* Visitors Stats */}

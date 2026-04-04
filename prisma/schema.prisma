@@ -117,3 +117,40 @@ model AdminSession {
   createdAt DateTime @default(now())
   expiresAt DateTime
 }
+
+model User {
+  id                String   @id @default(cuid())
+  username          String   @unique
+  password          String
+  name              String
+  isActive          Boolean  @default(true)
+  canViewInventory    Boolean @default(true)
+  canViewAlerts       Boolean @default(true)
+  canViewExpiring     Boolean @default(true)
+  canViewLifeSaving   Boolean @default(true)
+  canViewVaccines     Boolean @default(true)
+  canViewStrategic    Boolean @default(true)
+  canViewSmoking      Boolean @default(true)
+  canViewKidney       Boolean @default(true)
+  canViewCentral      Boolean @default(true)
+  canViewReports      Boolean @default(true)
+  canViewHoz          Boolean @default(true)
+  canViewMwsal        Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  sessions          UserSession[]
+
+  @@index([username])
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([token])
+  @@index([userId])
+}
