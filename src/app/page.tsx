@@ -114,6 +114,7 @@ export default function HomePage() {
     // التحقق من الصلاحيات قبل الانتقال
     const permMap: Record<string, { perm: boolean; page: Page }> = {
       'hold': { perm: user?.permissions?.canViewAlerts ?? true, page: 'alerts' },
+      'expired': { perm: user?.permissions?.canViewExpired ?? true, page: 'expired' },
       'expiring': { perm: user?.permissions?.canViewExpiring ?? true, page: 'expiring' },
       'life-saving': { perm: user?.permissions?.canViewLifeSaving ?? true, page: 'life-saving' },
       'vaccine': { perm: user?.permissions?.canViewVaccines ?? true, page: 'vaccines' },

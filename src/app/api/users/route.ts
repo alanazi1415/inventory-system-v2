@@ -65,12 +65,22 @@ export async function GET() {
 // إنشاء مستخدم جديد
 export async function POST(request: NextRequest) {
   try {
+    console.log('POST /api/users - Starting...')
+    
     const isAdmin = await checkAdminAuth()
+    console.log('Admin auth check result:', isAdmin)
+    
     if (!isAdmin) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
     
     const data = await request.json()
+    console.log('Received data:', { ...data, password: '***' })
+    
+    // التحقق من البيانات المطلوبة
+    if (!data.username || !data.name || !data.password) {
+      return NextResponse.json({ error: 'يرجى ملء جميع الحقول المطلوبة' }, { status: 400 })
+    }
     
     // التحقق من عدم وجود المستخدم
     const existingUser = await db.user.findUnique({
@@ -81,6 +91,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'اسم المستخدم موجود مسبقاً' }, { status: 400 })
     }
     
+    console.log('Creating user...')
     const user = await db.user.create({
       data: {
         username: data.username,
@@ -103,10 +114,16 @@ export async function POST(request: NextRequest) {
       }
     })
     
+    console.log('User created successfully:', user.id)
     return NextResponse.json({ success: true, user })
   } catch (error: any) {
     console.error('Create user error:', error)
-    return NextResponse.json({ error: 'حدث خطأ', details: error.message }, { status: 500 })
+    console.error('Error stack:', error.stack)
+    return NextResponse.json({ 
+      error: 'حدث خطأ في إنشاء المستخدم', 
+      details: error.message,
+      code: error.code 
+    }, { status: 500 })
   }
 }
 
