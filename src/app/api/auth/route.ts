@@ -8,7 +8,20 @@ export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json()
     
-    const adminPassword = process.env.ADMIN_PASSWORD || '123258'
+    // الحصول على كلمة المرور - نتحقق من قاعدة البيانات أولاً
+    let adminPassword = process.env.ADMIN_PASSWORD || '123258'
+    
+    try {
+      const savedPassword = await db.$queryRaw<{ password: string }[]>`
+        SELECT password FROM "AdminPassword" WHERE id = 'admin-password' LIMIT 1
+      `
+      if (savedPassword && savedPassword.length > 0) {
+        adminPassword = savedPassword[0].password
+      }
+    } catch (e) {
+      // جدول AdminPassword غير موجود بعد، نستخدم متغير البيئة
+      console.log('Using env password')
+    }
     
     if (username === 'admin' && password === adminPassword) {
       const token = Math.random().toString(36).substring(2) + Date.now().toString(36)

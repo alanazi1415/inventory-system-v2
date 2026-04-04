@@ -149,20 +149,7 @@ export default function HomePage() {
     )
   }
 
-  // صفحة تسجيل الدخول
-  if (!isAuthenticated) {
-    if (showAdminLogin) {
-      return <AdminLoginPage onLogin={handleAdminLogin} onClose={() => setShowAdminLogin(false)} />
-    }
-    return <LoginPage onLogin={handleUserLogin} onAdminLogin={() => setShowAdminLogin(true)} />
-  }
-
-  // صفحة اختيار النظام (مع الترحيب)
-  if (!selectedSystem || showWelcome) {
-    return <WelcomeDialog open={true} onSelect={handleSystemSelect} user={user} />
-  }
-
-  // صفحة الأدمن
+  // صفحة الأدمن - يجب التحقق منها قبل صفحة تسجيل الدخول
   if (isAdmin) {
     return (
       <div className="flex min-h-screen">
@@ -189,6 +176,19 @@ export default function HomePage() {
         </main>
       </div>
     )
+  }
+
+  // صفحة تسجيل الدخول
+  if (!isAuthenticated) {
+    if (showAdminLogin) {
+      return <AdminLoginPage onLogin={handleAdminLogin} onClose={() => setShowAdminLogin(false)} />
+    }
+    return <LoginPage onLogin={handleUserLogin} onAdminLogin={() => setShowAdminLogin(true)} />
+  }
+
+  // صفحة اختيار النظام (مع الترحيب)
+  if (!selectedSystem || showWelcome) {
+    return <WelcomeDialog open={true} onSelect={handleSystemSelect} user={user} />
   }
 
   // التحقق من صلاحية الوصول للصفحة الحالية

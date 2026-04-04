@@ -3,7 +3,8 @@ import { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2, Lock, Key } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface AdminPageProps { 
@@ -18,6 +19,9 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
   const [selectedSystem, setSelectedSystem] = useState<string>('hoz')
   const [uploadLogs, setUploadLogs] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [changingPassword, setChangingPassword] = useState(false)
 
   const fetchStats = async () => {
     try {
@@ -65,6 +69,48 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      toast({ title: "خطأ", description: "يرجى ملء جميع الحقول", variant: "destructive" })
+      return
+    }
+    
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({ title: "خطأ", description: "كلمة المرور الجديدة غير متطابقة", variant: "destructive" })
+      return
+    }
+    
+    if (passwordData.newPassword.length < 4) {
+      toast({ title: "خطأ", description: "كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل", variant: "destructive" })
+      return
+    }
+    
+    setChangingPassword(true)
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword
+        })
+      })
+      const data = await res.json()
+      
+      if (data.success) {
+        toast({ title: "تم", description: "تم تغيير كلمة المرور بنجاح" })
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+        setShowPasswordChange(false)
+      } else {
+        toast({ title: "خطأ", description: data.error, variant: "destructive" })
+      }
+    } catch (error) {
+      toast({ title: "خطأ", description: "حدث خطأ في الاتصال", variant: "destructive" })
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -211,6 +257,80 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Change Password Section */}
+      <Card className="border-red-200">
+        <CardHeader className="bg-red-50 pb-2">
+          <CardTitle className="text-red-700 flex items-center gap-2">
+            <Key className="w-5 h-5" />
+            تغيير كلمة مرور الأدمن
+          </CardTitle>
+          <CardDescription>يمكنك تغيير كلمة المرور الخاصة بالأدمن من هنا</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {!showPasswordChange ? (
+            <Button variant="outline" onClick={() => setShowPasswordChange(true)}>
+              <Lock className="w-4 h-4 ml-2" />
+              تغيير كلمة المرور
+            </Button>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">كلمة المرور الحالية</label>
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                      placeholder="كلمة المرور الحالية"
+                      className="pr-9"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">كلمة المرور الجديدة</label>
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                      placeholder="كلمة المرور الجديدة"
+                      className="pr-9"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">تأكيد كلمة المرور</label>
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      placeholder="تأكيد كلمة المرور"
+                      className="pr-9"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleChangePassword} disabled={changingPassword}>
+                  {changingPassword ? 'جاري الحفظ...' : 'حفظ كلمة المرور الجديدة'}
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  setShowPasswordChange(false)
+                  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                }}>
+                  إلغاء
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Upload Section */}
       <Card>
