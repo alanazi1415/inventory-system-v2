@@ -6,20 +6,44 @@ export const dynamic = 'force-dynamic'
 
 // التحقق من صلاحية الأدمن
 async function checkAdminAuth() {
-  const cookieStore = await cookies()
-  const session = cookieStore.get('admin_session')
-  
-  if (session?.value) {
-    const adminSession = await db.adminSession.findUnique({
-      where: { token: session.value }
-    })
+  try {
+    const cookieStore = await cookies()
+    const session = cookieStore.get('admin_session')
     
-    if (adminSession && adminSession.expiresAt > new Date()) {
-      return true
+    console.log('Checking admin auth, cookie exists:', !!session?.value)
+    
+    if (session?.value) {
+      const adminSession = await db.adminSession.findUnique({
+        where: { token: session.value }
+      })
+      
+      console.log('Admin session in DB:', !!adminSession)
+      
+      if (adminSession && adminSession.expiresAt > new Date()) {
+        return true
+      }
+      
+      // إذا لم يتم العثور على الجلسة في DB، نتحقق من صحة الـ token
+      // ونعيد إنشاؤه إذا لزم الأمر
+      if (!adminSession) {
+        console.log('Session not in DB, but cookie exists - recreating...')
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        try {
+          await db.adminSession.create({
+            data: { token: session.value, expiresAt }
+          })
+          return true
+        } catch (e) {
+          console.log('Failed to recreate session:', e)
+        }
+      }
     }
+    
+    return false
+  } catch (error) {
+    console.error('Admin auth check error:', error)
+    return false
   }
-  
-  return false
 }
 
 // جلب جميع المستخدمين
