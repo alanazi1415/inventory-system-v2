@@ -20,6 +20,7 @@ const PERMISSIONS: Permission[] = [
   { key: 'canViewInventory', label: 'المخزون اللحظي', icon: Package },
   { key: 'canViewAlerts', label: 'التنبيهات', icon: AlertTriangle },
   { key: 'canViewExpiring', label: 'قاربت على الانتهاء', icon: Clock },
+  { key: 'canViewExpired', label: 'البنود المنتهية', icon: Clock },
   { key: 'canViewLifeSaving', label: 'المنقذة للحياة', icon: Heart },
   { key: 'canViewVaccines', label: 'اللقاحات', icon: Syringe },
   { key: 'canViewStrategic', label: 'الاستراتيجية', icon: Shield },
@@ -42,6 +43,7 @@ interface User {
   canViewInventory: boolean
   canViewAlerts: boolean
   canViewExpiring: boolean
+  canViewExpired: boolean
   canViewLifeSaving: boolean
   canViewVaccines: boolean
   canViewStrategic: boolean
@@ -68,6 +70,7 @@ export function UserManagement() {
     canViewInventory: true,
     canViewAlerts: true,
     canViewExpiring: true,
+    canViewExpired: true,
     canViewLifeSaving: true,
     canViewVaccines: true,
     canViewStrategic: true,
@@ -105,6 +108,7 @@ export function UserManagement() {
       canViewInventory: true,
       canViewAlerts: true,
       canViewExpiring: true,
+      canViewExpired: true,
       canViewLifeSaving: true,
       canViewVaccines: true,
       canViewStrategic: true,
@@ -129,6 +133,7 @@ export function UserManagement() {
       canViewInventory: user.canViewInventory,
       canViewAlerts: user.canViewAlerts,
       canViewExpiring: user.canViewExpiring,
+      canViewExpired: user.canViewExpired,
       canViewLifeSaving: user.canViewLifeSaving,
       canViewVaccines: user.canViewVaccines,
       canViewStrategic: user.canViewStrategic,
@@ -204,6 +209,7 @@ export function UserManagement() {
       canViewInventory: value,
       canViewAlerts: value,
       canViewExpiring: value,
+      canViewExpired: value,
       canViewLifeSaving: value,
       canViewVaccines: value,
       canViewStrategic: value,

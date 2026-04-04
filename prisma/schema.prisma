@@ -134,6 +134,7 @@ model User {
   canViewInventory    Boolean @default(true)
   canViewAlerts       Boolean @default(true)
   canViewExpiring     Boolean @default(true)
+  canViewExpired      Boolean @default(true)
   canViewLifeSaving   Boolean @default(true)
   canViewVaccines     Boolean @default(true)
   canViewStrategic    Boolean @default(true)

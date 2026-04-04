@@ -1,11 +1,12 @@
 'use client'
 import { Button } from "@/components/ui/button"
-import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users } from "lucide-react"
+import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle } from "lucide-react"
 
 interface UserPermissions {
   canViewInventory: boolean
   canViewAlerts: boolean
   canViewExpiring: boolean
+  canViewExpired: boolean
   canViewLifeSaving: boolean
   canViewVaccines: boolean
   canViewStrategic: boolean
@@ -40,6 +41,7 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
     { id: 'inventory', label: 'المخزون اللحظي', icon: Package, perm: 'canViewInventory' as keyof UserPermissions },
     { id: 'alerts', label: 'التنبيهات (Hold)', icon: AlertTriangle, perm: 'canViewAlerts' as keyof UserPermissions },
     { id: 'expiring', label: 'قاربت على الانتهاء', icon: Clock, perm: 'canViewExpiring' as keyof UserPermissions },
+    { id: 'expired', label: 'البنود المنتهية', icon: XCircle, perm: 'canViewExpired' as keyof UserPermissions },
     { id: 'life-saving', label: 'البنود المنقذة للحياة', icon: Heart, perm: 'canViewLifeSaving' as keyof UserPermissions },
     { id: 'vaccines', label: 'اللقاحات', icon: Syringe, perm: 'canViewVaccines' as keyof UserPermissions },
     { id: 'strategic', label: 'البنود الاستراتيجية', icon: Shield, perm: 'canViewStrategic' as keyof UserPermissions },

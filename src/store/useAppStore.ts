@@ -7,6 +7,7 @@ interface UserPermissions {
   canViewInventory: boolean
   canViewAlerts: boolean
   canViewExpiring: boolean
+  canViewExpired: boolean
   canViewLifeSaving: boolean
   canViewVaccines: boolean
   canViewStrategic: boolean

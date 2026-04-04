@@ -13,9 +13,9 @@ import { ReportsPage } from '@/components/dashboard/ReportsPage'
 import { UserManagement } from '@/components/dashboard/UserManagement'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2 } from "lucide-react"
+import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle } from "lucide-react"
 
-type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'users'
+type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'users'
 
 export default function HomePage() {
   const { selectedSystem, showWelcome, user, isAuthenticated, setSelectedSystem, setShowWelcome, resetWelcome, setUser, logout } = useAppStore()
@@ -199,6 +199,7 @@ export default function HomePage() {
       'inventory': user.permissions.canViewInventory,
       'alerts': user.permissions.canViewAlerts,
       'expiring': user.permissions.canViewExpiring,
+      'expired': user.permissions.canViewExpired,
       'life-saving': user.permissions.canViewLifeSaving,
       'vaccines': user.permissions.canViewVaccines,
       'strategic': user.permissions.canViewStrategic,
@@ -271,6 +272,15 @@ export default function HomePage() {
                         <Clock className="w-7 h-7 text-orange-500" />
                         <p className="font-semibold text-sm">قاربت على الانتهاء</p>
                         <p className="text-xs text-gray-500">{stats.expiringItems || 0} بند</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {user?.permissions?.canViewExpired !== false && (
+                    <Card className="cursor-pointer hover:shadow-lg transition-shadow bg-red-50" onClick={() => setCurrentPage('expired')}>
+                      <CardContent className="p-3 flex flex-col items-center gap-2">
+                        <XCircle className="w-7 h-7 text-red-600" />
+                        <p className="font-semibold text-sm">البنود المنتهية</p>
+                        <p className="text-xs text-gray-500">{stats.expiredItems || 0} بند</p>
                       </CardContent>
                     </Card>
                   )}
@@ -376,6 +386,18 @@ export default function HomePage() {
               البنود قاربت على الانتهاء (أقل من 90 يوم)
             </h2>
             <InventoryTable system={selectedSystem} category="expiring" />
+          </div>
+        ) : (
+          <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
+        )
+      case 'expired': 
+        return canAccessPage('expired') ? (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <XCircle className="w-6 h-6 text-red-600" />
+              البنود المنتهية
+            </h2>
+            <InventoryTable system={selectedSystem} category="expired" />
           </div>
         ) : (
           <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
