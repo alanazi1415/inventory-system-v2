@@ -162,3 +162,49 @@ model UserSession {
   @@index([token])
   @@index([userId])
 }
+
+// نموذج حركة البنود
+model ItemMovement {
+  id                String   @id @default(cuid())
+  genericItemNumber String   // رقم البند الرئيسي
+  description       String?  // وصف البند
+  system            String   // المستودع (hoz, mwsal)
+  
+  // إحصائيات الحركة
+  totalQtyDispatched Float   @default(0)  // إجمالي الكمية المصروفة
+  transactionCount   Int     @default(0)  // عدد المعاملات
+  avgQtyPerTransaction Float @default(0)  // متوسط الكمية لكل معاملة
+  
+  // التواريخ
+  firstDispatchDate  DateTime? // أول صرف
+  lastDispatchDate   DateTime? // آخر صرف
+  daysSpan           Int       @default(0) // عدد الأيام بين أول وآخر صرف
+  
+  // التصنيف
+  movementClass      String   @default("غير مصنف") // سريع جداً، سريع، متوسط، بطيء، عديم الحركة
+  movementScore      Float    @default(0) // درجة الحركة (للترتيب)
+  
+  // معلومات إضافية
+  lastAnalysisDate   DateTime @default(now()) // تاريخ آخر تحليل
+  reportSource       String?  // مصدر التقرير
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([genericItemNumber])
+  @@index([system])
+  @@index([movementClass])
+  @@unique([genericItemNumber, system])
+}
+
+// سجل تقارير الحركة المحملة
+model MovementReportLog {
+  id           String   @id @default(cuid())
+  fileName     String
+  system       String
+  recordsCount Int      @default(0)
+  itemsCount   Int      @default(0)
+  dateFrom     DateTime?
+  dateTo       DateTime?
+  createdAt    DateTime @default(now())
+}

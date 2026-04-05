@@ -11,11 +11,12 @@ import { AdminLoginPage } from '@/components/dashboard/AdminLoginPage'
 import { AdminPage } from '@/components/dashboard/AdminPage'
 import { ReportsPage } from '@/components/dashboard/ReportsPage'
 import { UserManagement } from '@/components/dashboard/UserManagement'
+import { MovementPage } from '@/components/dashboard/MovementPage'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle } from "lucide-react"
 
-type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'users'
+type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'users' | 'movement'
 
 export default function HomePage() {
   const { selectedSystem, showWelcome, user, isAuthenticated, setSelectedSystem, setShowWelcome, resetWelcome, setUser, logout } = useAppStore()
@@ -480,6 +481,10 @@ export default function HomePage() {
           <ReportsPage system={selectedSystem} />
         ) : (
           <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
+        )
+      case 'movement': 
+        return (
+          <MovementPage system={selectedSystem} />
         )
       default: 
         return null

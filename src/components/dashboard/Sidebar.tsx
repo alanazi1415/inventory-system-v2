@@ -1,6 +1,6 @@
 'use client'
 import { Button } from "@/components/ui/button"
-import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle } from "lucide-react"
+import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle, Activity } from "lucide-react"
 
 interface UserPermissions {
   canViewInventory: boolean
@@ -49,6 +49,7 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
     { id: 'kidney', label: 'بنود الكلى', icon: Droplets, perm: 'canViewKidney' as keyof UserPermissions },
     { id: 'central', label: 'البنود المركزية', icon: Building2, perm: 'canViewCentral' as keyof UserPermissions },
     { id: 'reports', label: 'التقارير', icon: FileText, perm: 'canViewReports' as keyof UserPermissions },
+    { id: 'movement', label: 'تحليل الحركة', icon: Activity, perm: null },
   ]
 
   // إضافة عنصر إدارة المستخدمين للأدمن
