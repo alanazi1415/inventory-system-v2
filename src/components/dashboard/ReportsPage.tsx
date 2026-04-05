@@ -298,7 +298,7 @@ export function ReportsPage({ system }: ReportsPageProps) {
                   <Tooltip 
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
-                        const data = holdTypesData.find(d => d.name === label)
+                        const data = holdTypesData.find((d: { name: string }) => d.name === label)
                         return (
                           <div className="bg-white p-3 rounded-lg shadow-lg border text-right" dir="rtl">
                             <p className="font-bold text-gray-800 text-xs">{data?.fullName}</p>
