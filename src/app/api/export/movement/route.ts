@@ -36,28 +36,38 @@ export async function GET(request: NextRequest) {
     const systemName = system === 'hoz' ? 'هوز' : 'موصل'
 
     // تجهيز البيانات للإكسل
-    const excelData = items.map((item: any, index: number) => ({
-      '#': index + 1,
-      'رقم البند': item.genericItemNumber || '',
-      'الوصف': item.description || '',
-      'تصنيف الحركة': item.movementClass || '',
-      'درجة الحركة': Math.round(item.movementScore || 0),
-      'الكمية المصروفة': item.totalQtyDispatched || 0,
-      'عدد المعاملات': item.transactionCount || 0,
-      'متوسط الكمية لكل معاملة': Math.round(item.avgQtyPerTransaction || 0),
-      'تاريخ أول صرف': item.firstDispatchDate 
-        ? new Date(item.firstDispatchDate).toLocaleDateString('ar-SA') 
-        : '',
-      'تاريخ آخر صرف': item.lastDispatchDate 
-        ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA') 
-        : '',
-      'الفترة (يوم)': item.daysSpan || 0,
-      'تاريخ آخر تحليل': item.lastAnalysisDate 
-        ? new Date(item.lastAnalysisDate).toLocaleDateString('ar-SA') 
-        : '',
-      'مصدر التقرير': item.reportSource || '',
-      'النظام': systemName,
-    }))
+    const now = new Date()
+    const excelData = items.map((item: any, index: number) => {
+      let daysSinceLastDispatch: number | null = null
+      if (item.lastDispatchDate) {
+        const lastDispatch = new Date(item.lastDispatchDate)
+        daysSinceLastDispatch = Math.ceil((now.getTime() - lastDispatch.getTime()) / (1000 * 60 * 60 * 24))
+        if (daysSinceLastDispatch < 0) daysSinceLastDispatch = 0
+      }
+      return {
+        '#': index + 1,
+        'رقم البند': item.genericItemNumber || '',
+        'الوصف': item.description || '',
+        'تصنيف الحركة': item.movementClass || '',
+        'درجة الحركة': Math.round(item.movementScore || 0),
+        'الكمية المصروفة': item.totalQtyDispatched || 0,
+        'عدد المعاملات': item.transactionCount || 0,
+        'متوسط الكمية لكل معاملة': Math.round(item.avgQtyPerTransaction || 0),
+        'تاريخ أول صرف': item.firstDispatchDate 
+          ? new Date(item.firstDispatchDate).toLocaleDateString('ar-SA') 
+          : '',
+        'تاريخ آخر صرف': item.lastDispatchDate 
+          ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA') 
+          : '',
+        'منذ كم يوم': daysSinceLastDispatch ?? '',
+        'الفترة (يوم)': item.daysSpan || 0,
+        'تاريخ آخر تحليل': item.lastAnalysisDate 
+          ? new Date(item.lastAnalysisDate).toLocaleDateString('ar-SA') 
+          : '',
+        'مصدر التقرير': item.reportSource || '',
+        'النظام': systemName,
+      }
+    })
 
     // إنشاء ملف الإكسل
     const workbook = xlsx.utils.book_new()
@@ -75,6 +85,7 @@ export async function GET(request: NextRequest) {
       { wch: 18 },  // متوسط الكمية
       { wch: 15 },  // تاريخ أول صرف
       { wch: 15 },  // تاريخ آخر صرف
+      { wch: 12 },  // منذ كم يوم
       { wch: 12 },  // الفترة
       { wch: 15 },  // تاريخ آخر تحليل
       { wch: 25 },  // مصدر التقرير

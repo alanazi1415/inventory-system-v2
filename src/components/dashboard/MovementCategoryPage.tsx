@@ -22,6 +22,7 @@ interface MovementItem {
   daysSpan: number
   movementClass: string
   movementScore: number
+  daysSinceLastDispatch: number | null
 }
 
 interface MovementCategoryPageProps {
@@ -78,8 +79,10 @@ export function MovementCategoryPage({
   const [search, setSearch] = useState('')
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [sortBy, setSortBy] = useState<string>('movementScore')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  // الترتيب الافتراضي: بنود عديمة الحركة ترتب حسب الأطول فترة بدون صرف
+  const defaultSortBy = classes.includes('عديم الحركة') ? 'daysSinceLastDispatch' : 'movementScore'
+  const [sortBy, setSortBy] = useState<string>(defaultSortBy)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(classes.includes('عديم الحركة') ? 'desc' : 'desc')
   const [exporting, setExporting] = useState(false)
   const [summaryStats, setSummaryStats] = useState<{
     totalQty: number
@@ -178,7 +181,7 @@ export function MovementCategoryPage({
   }
 
   const exportToCSV = () => {
-    const headers = ['رقم البند', 'الوصف', 'التصنيف', 'الكمية المصروفة', 'عدد المعاملات', 'المتوسط', 'الفترة (يوم)', 'تاريخ أول صرف', 'تاريخ آخر صرف']
+    const headers = ['رقم البند', 'الوصف', 'التصنيف', 'الكمية المصروفة', 'عدد المعاملات', 'المتوسط', 'الفترة (يوم)', 'تاريخ أول صرف', 'تاريخ آخر صرف', 'منذ كم يوم (يوم)']
     const rows = items.map(item => [
       item.genericItemNumber,
       item.description || '',
@@ -188,7 +191,8 @@ export function MovementCategoryPage({
       item.avgQtyPerTransaction.toFixed(0),
       item.daysSpan,
       item.firstDispatchDate ? new Date(item.firstDispatchDate).toLocaleDateString('ar-SA') : '',
-      item.lastDispatchDate ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA') : ''
+      item.lastDispatchDate ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA') : '',
+      item.daysSinceLastDispatch ?? ''
     ])
 
     const BOM = '\uFEFF'
@@ -394,6 +398,7 @@ export function MovementCategoryPage({
                     <SortableHeader field="avgQtyPerTransaction">المتوسط</SortableHeader>
                     <SortableHeader field="daysSpan">الفترة</SortableHeader>
                     <SortableHeader field="lastDispatchDate">آخر صرف</SortableHeader>
+                    <SortableHeader field="daysSinceLastDispatch">منذ كم يوم</SortableHeader>
                   </tr>
                 </thead>
                 <tbody>
@@ -434,6 +439,17 @@ export function MovementCategoryPage({
                             ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA')
                             : '-'
                           }
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                            item.daysSinceLastDispatch === null ? 'bg-gray-100 text-gray-500' :
+                            item.daysSinceLastDispatch >= 180 ? 'bg-red-100 text-red-700' :
+                            item.daysSinceLastDispatch >= 90 ? 'bg-orange-100 text-orange-700' :
+                            item.daysSinceLastDispatch >= 30 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {item.daysSinceLastDispatch !== null ? `${item.daysSinceLastDispatch} يوم` : '-'}
+                          </span>
                         </td>
                       </tr>
                     )

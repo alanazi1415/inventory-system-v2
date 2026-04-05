@@ -27,6 +27,7 @@ interface MovementItem {
   daysSpan: number
   movementClass: string
   movementScore: number
+  daysSinceLastDispatch: number | null
 }
 
 interface ClassCount {
@@ -630,6 +631,8 @@ export function MovementPage({ system }: MovementPageProps) {
                     <th className="text-center p-3 font-medium">المعاملات</th>
                     <th className="text-center p-3 font-medium">المتوسط</th>
                     <th className="text-center p-3 font-medium">الفترة</th>
+                    <th className="text-center p-3 font-medium">آخر صرف</th>
+                    <th className="text-center p-3 font-medium">منذ كم يوم</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -662,6 +665,23 @@ export function MovementPage({ system }: MovementPageProps) {
                       </td>
                       <td className="p-3 text-center text-gray-600">
                         {item.daysSpan} يوم
+                      </td>
+                      <td className="p-3 text-center text-gray-600 text-xs">
+                        {item.lastDispatchDate
+                          ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA')
+                          : '-'
+                        }
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                          item.daysSinceLastDispatch === null ? 'bg-gray-100 text-gray-500' :
+                          item.daysSinceLastDispatch >= 180 ? 'bg-red-100 text-red-700' :
+                          item.daysSinceLastDispatch >= 90 ? 'bg-orange-100 text-orange-700' :
+                          item.daysSinceLastDispatch >= 30 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {item.daysSinceLastDispatch !== null ? item.daysSinceLastDispatch + ' يوم' : '-'}
+                        </span>
                       </td>
                     </tr>
                   ))}

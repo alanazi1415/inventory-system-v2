@@ -246,8 +246,23 @@ export async function GET(request: NextRequest) {
       })
     ])
 
+    // حساب عدد الأيام منذ آخر صرف لكل بند
+    const now = new Date()
+    const itemsWithDaysSince = items.map(item => {
+      let daysSinceLastDispatch: number | null = null
+      if (item.lastDispatchDate) {
+        const lastDispatch = new Date(item.lastDispatchDate)
+        daysSinceLastDispatch = Math.ceil((now.getTime() - lastDispatch.getTime()) / (1000 * 60 * 60 * 24))
+        if (daysSinceLastDispatch < 0) daysSinceLastDispatch = 0
+      }
+      return {
+        ...item,
+        daysSinceLastDispatch
+      }
+    })
+
     return NextResponse.json({
-      items,
+      items: itemsWithDaysSince,
       total,
       classCounts: classCounts.map(c => ({
         class: c.movementClass,
