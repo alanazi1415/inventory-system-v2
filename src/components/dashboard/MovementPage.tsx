@@ -217,12 +217,12 @@ export function MovementPage({ system }: MovementPageProps) {
                   جاري التحليل...
                 </>
               ) : (
-              <>
-                <Upload className="w-4 h-4" />
-                رفع تقرير الحركة
-              </>
-            )}
-          </Button>
+                <>
+                  <Upload className="w-4 h-4" />
+                  رفع تقرير الحركة
+                </>
+              )}
+            </Button>
         </div>
       </div>
 
