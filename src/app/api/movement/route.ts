@@ -38,6 +38,36 @@ async function checkAdminAuth() {
   }
 }
 
+// التحقق من صلاحية المستخدم (لتحليل الحركة)
+async function checkUserMovementAuth(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies()
+    const session = cookieStore.get('user_session')
+    
+    if (session?.value) {
+      const userSession = await db.userSession.findUnique({
+        where: { token: session.value },
+        include: { user: true }
+      })
+      
+      if (userSession && userSession.expiresAt > new Date() && userSession.user.isActive) {
+        return !!userSession.user.canViewMovement
+      }
+    }
+    return false
+  } catch (error) {
+    console.error('User movement auth check error:', error)
+    return false
+  }
+}
+
+// التحقق من صلاحية (أدمن أو مستخدم مصرح له)
+async function checkMovementAccess(): Promise<boolean> {
+  const isAdmin = await checkAdminAuth()
+  if (isAdmin) return true
+  return checkUserMovementAuth()
+}
+
 // تصنيف الحركة
 function classifyMovement(transactionCount: number, totalQty: number): { movementClass: string; score: number } {
   const score = (transactionCount * 10) + (totalQty / 100)
@@ -58,8 +88,8 @@ function classifyMovement(transactionCount: number, totalQty: number): { movemen
 // رفع وتحليل تقرير الحركة (يستقبل JSON من المتصفح بدل ملف)
 export async function POST(request: NextRequest) {
   try {
-    const isAdmin = await checkAdminAuth()
-    if (!isAdmin) {
+    const hasAccess = await checkMovementAccess()
+    if (!hasAccess) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
     
