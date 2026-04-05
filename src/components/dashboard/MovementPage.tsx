@@ -61,16 +61,45 @@ function analyzeColumns(headers: string[]) {
   
   const itemNumberKeywords = ['generic item number', 'item number', 'generic', 'رقم البند', 'كود']
   const qtyKeywords = ['pick qty', 'quantity', 'qty', 'الكمية', 'صرف']
-  const dateKeywords = ['date', 'creation', 'تاريخ', 'confirm', 'approve']
   const descKeywords = ['description', 'وصف', 'trade description', 'name']
   
+  // كلمات مفتاحية لأعمدة التواريخ التي يجب استبعادها (تواريخ صلاحية/إنتاج)
+  const excludeDateKeywords = ['best before', 'expiry', 'expiration', 'انتهاء', 'production', 'تاريخ الانتاج']
+  // كلمات مفتاحية مفضلة لعامود تاريخ الصرف (أولوية عالية)
+  const preferredDateKeywords = ['confirm date', 'تاريخ الصرف', 'تاريخ التأكيد']
+  // كلمات مفتاحية عامة للتواريخ (أولوية منخفضة)
+  const genericDateKeywords = ['date', 'creation', 'تاريخ']
+
   headers.forEach((header, index) => {
     const h = String(header).toLowerCase().trim()
     if (result.itemNumberCol === -1 && itemNumberKeywords.some(k => h.includes(k))) result.itemNumberCol = index
     if (result.qtyCol === -1 && qtyKeywords.some(k => h.includes(k))) result.qtyCol = index
-    if (result.dateCol === -1 && dateKeywords.some(k => h.includes(k))) result.dateCol = index
     if (result.descCol === -1 && descKeywords.some(k => h.includes(k))) result.descCol = index
   })
+
+  // البحث عن عامود التاريخ: أولاً التاريخ المفضل (Confirm Date)، ثم العام (مع استبعاد تواريخ الصلاحية)
+  headers.forEach((header, index) => {
+    if (result.dateCol !== -1) return
+    const h = String(header).toLowerCase().trim()
+    // أولاً: أعمدة التاريخ المفضلة (تاريخ الصرف الفعلي)
+    if (preferredDateKeywords.some(k => h === k || h.includes(k))) {
+      result.dateCol = index
+      return
+    }
+  })
+
+  // إذا لم يُعثر على عامود تاريخ مفضل، ابحث عن عامود تاريخ عام مع استبعاد تواريخ الصلاحية
+  if (result.dateCol === -1) {
+    headers.forEach((header, index) => {
+      if (result.dateCol !== -1) return
+      const h = String(header).toLowerCase().trim()
+      // استبعاد أعمدة تواريخ الصلاحية والإنتاج
+      if (excludeDateKeywords.some(k => h.includes(k))) return
+      if (genericDateKeywords.some(k => h.includes(k))) {
+        result.dateCol = index
+      }
+    })
+  }
   
   return result
 }
