@@ -235,6 +235,7 @@ export function MovementPage({ system }: MovementPageProps) {
                 </>
               )}
             </Button>
+          </div>
         </div>
       </div>
 
