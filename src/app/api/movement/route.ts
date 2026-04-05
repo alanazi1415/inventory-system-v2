@@ -322,20 +322,25 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const limit = parseInt(searchParams.get('limit') || '100')
     const offset = parseInt(searchParams.get('offset') || '0')
-    
+
+    // دعم عدة تصنيفات عبر تكرار معامل class
+    const allClasses = searchParams.getAll('class').filter(c => c && c !== 'all')
+
     const where: any = { system }
-    
-    if (movementClass && movementClass !== 'all') {
+
+    if (allClasses.length > 0) {
+      where.movementClass = { in: allClasses }
+    } else if (movementClass && movementClass !== 'all') {
       where.movementClass = movementClass
     }
-    
+
     if (search) {
       where.OR = [
         { genericItemNumber: { contains: search } },
         { description: { contains: search, mode: 'insensitive' } }
       ]
     }
-    
+
     const [items, total, classCounts] = await Promise.all([
       db.itemMovement.findMany({
         where,
@@ -350,7 +355,7 @@ export async function GET(request: NextRequest) {
         _count: { id: true }
       })
     ])
-    
+
     return NextResponse.json({
       items,
       total,
@@ -361,7 +366,7 @@ export async function GET(request: NextRequest) {
       page: Math.floor(offset / limit) + 1,
       totalPages: Math.ceil(total / limit)
     })
-    
+
   } catch (error: any) {
     console.error('Get movement error:', error)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })

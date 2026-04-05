@@ -1,6 +1,6 @@
 'use client'
 import { Button } from "@/components/ui/button"
-import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle, Activity } from "lucide-react"
+import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle, Activity, Flame, Snowflake, Zap } from "lucide-react"
 
 interface UserPermissions {
   canViewInventory: boolean
@@ -49,7 +49,11 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
     { id: 'kidney', label: 'بنود الكلى', icon: Droplets, perm: 'canViewKidney' as keyof UserPermissions },
     { id: 'central', label: 'البنود المركزية', icon: Building2, perm: 'canViewCentral' as keyof UserPermissions },
     { id: 'reports', label: 'التقارير', icon: FileText, perm: 'canViewReports' as keyof UserPermissions },
+    { id: '_divider_movement', label: '---', icon: Activity, perm: null },
     { id: 'movement', label: 'تحليل الحركة', icon: Activity, perm: null },
+    { id: 'fast-movement', label: 'بنود سريعة الحركة', icon: Flame, perm: null },
+    { id: 'slow-movement', label: 'بنود قليلة الحركة', icon: Snowflake, perm: null },
+    { id: 'no-movement', label: 'بنود عديمة الحركة', icon: Zap, perm: null },
   ]
 
   // إضافة عنصر إدارة المستخدمين للأدمن
@@ -89,6 +93,13 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {filteredMenuItems.map((item) => {
+          if (item.id.startsWith('_divider')) {
+            return (
+              <div key={item.id} className="border-t my-2 pt-2">
+                <span className="text-xs text-gray-400 px-3">تحليل الحركة</span>
+              </div>
+            )
+          }
           const Icon = item.icon
           const isActive = currentPage === item.id
           return (

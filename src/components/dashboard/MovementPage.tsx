@@ -306,7 +306,7 @@ export function MovementPage({ system }: MovementPageProps) {
                     outerRadius={90}
                     paddingAngle={2}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
                     labelLine={false}
                   >
                     {pieData.map((entry, index) => (
@@ -339,7 +339,7 @@ export function MovementPage({ system }: MovementPageProps) {
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" tickFormatter={(v) => v.toLocaleString('ar-SA')} />
                   <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => v.toLocaleString('ar-SA')} />
+                  <Tooltip formatter={(v) => (v ?? 0).toLocaleString('ar-SA')} />
                   <Bar dataKey="البنود" radius={[0, 4, 4, 0]}>
                     {barData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />

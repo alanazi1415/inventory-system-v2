@@ -12,11 +12,12 @@ import { AdminPage } from '@/components/dashboard/AdminPage'
 import { ReportsPage } from '@/components/dashboard/ReportsPage'
 import { UserManagement } from '@/components/dashboard/UserManagement'
 import { MovementPage } from '@/components/dashboard/MovementPage'
+import { MovementCategoryPage } from '@/components/dashboard/MovementCategoryPage'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle } from "lucide-react"
+import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle, Flame, Snowflake, Zap } from "lucide-react"
 
-type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'users' | 'movement'
+type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'users' | 'movement' | 'fast-movement' | 'slow-movement' | 'no-movement'
 
 export default function HomePage() {
   const { selectedSystem, showWelcome, user, isAuthenticated, setSelectedSystem, setShowWelcome, resetWelcome, setUser, logout } = useAppStore()
@@ -485,6 +486,42 @@ export default function HomePage() {
       case 'movement': 
         return (
           <MovementPage system={selectedSystem} />
+        )
+      case 'fast-movement':
+        return (
+          <MovementCategoryPage
+            system={selectedSystem}
+            classes={['سريع جداً', 'سريع']}
+            title="بنود سريعة الحركة"
+            icon="flame"
+            accentColor="text-red-600"
+            bgColor="bg-red-50"
+            description="البنود التي لها حركة صرف عالية (سريع جداً + سريع)"
+          />
+        )
+      case 'slow-movement':
+        return (
+          <MovementCategoryPage
+            system={selectedSystem}
+            classes={['بطيء']}
+            title="بنود قليلة الحركة"
+            icon="clock"
+            accentColor="text-blue-600"
+            bgColor="bg-blue-50"
+            description="البنود التي لها حركة صرف منخفضة"
+          />
+        )
+      case 'no-movement':
+        return (
+          <MovementCategoryPage
+            system={selectedSystem}
+            classes={['عديم الحركة']}
+            title="بنود عديمة الحركة"
+            icon="snowflake"
+            accentColor="text-gray-600"
+            bgColor="bg-gray-50"
+            description="البنود التي ليس لها أي حركة صرف"
+          />
         )
       default: 
         return null
