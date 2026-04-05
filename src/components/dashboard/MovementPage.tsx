@@ -176,8 +176,20 @@ export function MovementPage({ system }: MovementPageProps) {
   const totalPages = Math.ceil(total / pageSize)
 
   const getMovementIcon = (className: string) => {
-    const Icon = MOVEMENT_ICONS[className as keyof typeof MOVEMENT_ICONS] || Activity
-    return <Icon className="w-4 h-4" />
+    switch (className) {
+      case 'سريع جداً':
+        return <Flame className="w-4 h-4" />
+      case 'سريع':
+        return <Zap className="w-4 h-4" />
+      case 'متوسط':
+        return <Activity className="w-4 h-4" />
+      case 'بطيء':
+        return <Clock className="w-4 h-4" />
+      case 'عديم الحركة':
+        return <Snowflake className="w-4 h-4" />
+      default:
+        return <Activity className="w-4 h-4" />
+    }
   }
 
   return (
