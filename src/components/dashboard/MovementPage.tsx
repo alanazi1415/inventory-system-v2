@@ -111,6 +111,13 @@ export function MovementPage({ system }: MovementPageProps) {
     const file = e.target.files?.[0]
     if (!file) return
 
+    // تأكيد المستودع
+    const confirmMsg = `سيتم رفع التقرير إلى: ${systemName}\n\nهل أنت متأكد أن هذا التقرير يخص ${systemName}؟`
+    if (!confirm(confirmMsg)) {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
     setUploading(true)
     setUploadMessage(null)
 
@@ -129,7 +136,7 @@ export function MovementPage({ system }: MovementPageProps) {
       if (data.success) {
         setUploadMessage({ 
           type: 'success', 
-          text: `تم تحليل ${data.stats.uniqueItems} بند من ${data.stats.totalRecords} سجل` 
+          text: `✅ تم تحليل ${data.stats.uniqueItems} بند من ${data.stats.totalRecords} سجل - ${systemName}` 
         })
         fetchData()
       } else {
@@ -186,26 +193,30 @@ export function MovementPage({ system }: MovementPageProps) {
         </div>
         
         {/* رفع التقرير */}
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleUpload}
-            className="hidden"
-            id="movement-upload"
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="gap-2"
-          >
-            {uploading ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                جاري التحليل...
-              </>
-            ) : (
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${system === 'mwsal' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+              المستودع: {systemName}
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleUpload}
+              className="hidden"
+              id="movement-upload"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className={`gap-2 ${system === 'mwsal' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+            >
+              {uploading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  جاري التحليل...
+                </>
+              ) : (
               <>
                 <Upload className="w-4 h-4" />
                 رفع تقرير الحركة
@@ -221,6 +232,15 @@ export function MovementPage({ system }: MovementPageProps) {
           {uploadMessage.text}
         </div>
       )}
+
+      {/* تنبيه المستودع */}
+      <div className={`p-4 rounded-lg border ${system === 'mwsal' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+        <p className="text-sm">
+          <strong>ملاحظة:</strong> سيتم حفظ البيانات في <strong>{systemName}</strong> فقط.
+          {system === 'mwsal' ? ' (مستودع موصول E300)' : ' (مستودع هوز E200)'}
+          إذا أردت رفع تقرير للمستودع الآخر، غيّر المستودع من القائمة الجانبية أولاً.
+        </p>
+      </div>
 
       {/* ملخص التصنيفات */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
