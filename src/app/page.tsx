@@ -488,11 +488,13 @@ export default function HomePage() {
           <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
         )
       case 'movement': 
-        return (
+        return canAccessPage('movement') ? (
           <MovementPage system={selectedSystem} />
+        ) : (
+          <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
         )
       case 'fast-movement':
-        return (
+        return canAccessPage('fast-movement') ? (
           <MovementCategoryPage
             system={selectedSystem}
             classes={['سريع جداً', 'سريع']}
@@ -502,9 +504,11 @@ export default function HomePage() {
             bgColor="bg-red-50"
             description="البنود التي لها حركة صرف عالية (سريع جداً + سريع)"
           />
+        ) : (
+          <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
         )
       case 'slow-movement':
-        return (
+        return canAccessPage('slow-movement') ? (
           <MovementCategoryPage
             system={selectedSystem}
             classes={['بطيء']}
@@ -514,9 +518,11 @@ export default function HomePage() {
             bgColor="bg-blue-50"
             description="البنود التي لها حركة صرف منخفضة"
           />
+        ) : (
+          <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
         )
       case 'no-movement':
-        return (
+        return canAccessPage('no-movement') ? (
           <MovementCategoryPage
             system={selectedSystem}
             classes={['عديم الحركة']}
@@ -526,6 +532,8 @@ export default function HomePage() {
             bgColor="bg-gray-50"
             description="البنود التي ليس لها أي حركة صرف"
           />
+        ) : (
+          <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
         )
       default: 
         return null

@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
             canViewKidney: user.canViewKidney,
             canViewCentral: user.canViewCentral,
             canViewReports: user.canViewReports,
+            canViewMovement: user.canViewMovement,
             canViewHoz: user.canViewHoz,
             canViewMwsal: user.canViewMwsal
           }
@@ -98,6 +99,7 @@ export async function GET() {
               canViewKidney: userSession.user.canViewKidney,
               canViewCentral: userSession.user.canViewCentral,
               canViewReports: userSession.user.canViewReports,
+              canViewMovement: userSession.user.canViewMovement,
               canViewHoz: userSession.user.canViewHoz,
               canViewMwsal: userSession.user.canViewMwsal
             }

@@ -80,6 +80,7 @@ export function MovementCategoryPage({
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<string>('movementScore')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [exporting, setExporting] = useState(false)
   const [summaryStats, setSummaryStats] = useState<{
     totalQty: number
     totalTransactions: number
@@ -199,6 +200,37 @@ export function MovementCategoryPage({
     link.click()
   }
 
+  // تحديد تصنيف للتصدير
+  const getCategoryParam = (): string => {
+    if (classes.includes('سريع جداً') || classes.includes('سريع')) return 'fast'
+    if (classes.includes('بطيء')) return 'slow'
+    if (classes.includes('عديم الحركة')) return 'no-movement'
+    return 'all'
+  }
+
+  const handleExportExcel = async () => {
+    setExporting(true)
+    try {
+      const categoryParam = getCategoryParam()
+      const res = await fetch(`/api/export/movement?system=${system}&category=${categoryParam}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'فشل التصدير')
+      }
+      const blob = await res.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      const date = new Date().toISOString().split('T')[0]
+      link.download = `${title.replace(/\s+/g, '_')}_${system}_${date}.xlsx`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (error: any) {
+      alert('حدث خطأ أثناء التصدير: ' + error.message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const HeaderIcon = getHeaderIcon(icon)
   const systemName = system === 'hoz' ? 'مستودع هوز (E200)' : 'مستودع موصول (E300)'
 
@@ -234,6 +266,10 @@ export function MovementCategoryPage({
           <Button variant="outline" size="sm" onClick={exportToCSV} disabled={items.length === 0}>
             <Download className="w-4 h-4 ml-1" />
             تصدير CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={exporting || total === 0} className="gap-1">
+            <Download className={`w-4 h-4 ml-1 ${exporting ? 'animate-pulse' : ''}`} />
+            {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
           </Button>
         </div>
       </div>

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
   TrendingUp, TrendingDown, Minus, Upload, Search, Filter, 
   Package, Activity, BarChart3, PieChart as PieChartIcon, RefreshCw,
-  Flame, Zap, Clock, Snowflake
+  Flame, Zap, Clock, Snowflake, Download
 } from "lucide-react"
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -90,6 +90,7 @@ export function MovementPage({ system }: MovementPageProps) {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const pageSize = 50
@@ -132,6 +133,29 @@ export function MovementPage({ system }: MovementPageProps) {
     }, 500)
     return () => clearTimeout(timer)
   }, [search])
+
+  const handleExportExcel = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch(`/api/export/movement?system=${system}&category=all`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'فشل التصدير')
+      }
+      const blob = await res.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      const systemNameExport = system === 'hoz' ? 'هوز' : 'موصول'
+      const date = new Date().toISOString().split('T')[0]
+      link.download = `تحليل_الحركة_${systemNameExport}_${date}.xlsx`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (error: any) {
+      alert('حدث خطأ أثناء التصدير: ' + error.message)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -344,12 +368,22 @@ export function MovementPage({ system }: MovementPageProps) {
           <p className="text-gray-500">{systemName} • {total.toLocaleString('ar-SA')} بند</p>
         </div>
         
-        {/* رفع التقرير */}
+        {/* رفع التقرير + تصدير */}
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${system === 'mwsal' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
               المستودع: {systemName}
             </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportExcel}
+              disabled={exporting || total === 0}
+              className="gap-2"
+            >
+              <Download className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} />
+              {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
+            </Button>
             <input
               ref={fileInputRef}
               type="file"
