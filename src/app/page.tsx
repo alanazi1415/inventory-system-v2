@@ -210,6 +210,10 @@ export default function HomePage() {
       'kidney': user.permissions.canViewKidney,
       'central': user.permissions.canViewCentral,
       'reports': user.permissions.canViewReports,
+      'movement': user.permissions.canViewMovement,
+      'fast-movement': user.permissions.canViewMovement,
+      'slow-movement': user.permissions.canViewMovement,
+      'no-movement': user.permissions.canViewMovement,
     }
     
     if (page === 'home') return true

@@ -71,6 +71,7 @@ export async function GET() {
         canViewKidney: true,
         canViewCentral: true,
         canViewReports: true,
+        canViewMovement: true,
         canViewHoz: true,
         canViewMwsal: true,
         createdAt: true,
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
         canViewKidney: data.canViewKidney ?? true,
         canViewCentral: data.canViewCentral ?? true,
         canViewReports: data.canViewReports ?? true,
+        canViewMovement: data.canViewMovement ?? true,
         canViewHoz: data.canViewHoz ?? true,
         canViewMwsal: data.canViewMwsal ?? true
       }
@@ -175,6 +177,7 @@ export async function PUT(request: NextRequest) {
       canViewKidney: data.canViewKidney,
       canViewCentral: data.canViewCentral,
       canViewReports: data.canViewReports,
+      canViewMovement: data.canViewMovement,
       canViewHoz: data.canViewHoz,
       canViewMwsal: data.canViewMwsal
     }

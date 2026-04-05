@@ -8,17 +8,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { page, system } = body
 
-    // الجدول يحتوي على: id, sessionId (NOT NULL), page, system, visitedAt (NOT NULL), ipAddress
-    await db.$executeRaw`
-      INSERT INTO "VisitorLog" (id, "sessionId", page, system, "visitedAt")
-      VALUES (
-        gen_random_uuid(),
-        gen_random_uuid(),
-        ${page || 'unknown'},
-        ${system || null},
-        NOW()
-      )
-    `
+    await db.visitorLog.create({
+      data: {
+        page: page || 'unknown',
+        system: system || null
+      }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

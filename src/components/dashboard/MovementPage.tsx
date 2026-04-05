@@ -35,11 +35,11 @@ interface ClassCount {
 }
 
 const MOVEMENT_COLORS = {
-  'سريع جداً': '#ef4444',  // أحمر
-  'سريع': '#f97316',       // برتقالي
-  'متوسط': '#eab308',      // أصفر
-  'بطيء': '#3b82f6',       // أزرق
-  'عديم الحركة': '#6b7280' // رمادي
+  'سريع جداً': '#ef4444',
+  'سريع': '#f97316',
+  'متوسط': '#eab308',
+  'بطيء': '#3b82f6',
+  'عديم الحركة': '#6b7280'
 }
 
 const MOVEMENT_ICONS = {
@@ -48,6 +48,31 @@ const MOVEMENT_ICONS = {
   'متوسط': Activity,
   'بطيء': Clock,
   'عديم الحركة': Snowflake
+}
+
+// تحليل الأعمدة بشكل ذكي (نسخة المتصفح)
+function analyzeColumns(headers: string[]) {
+  const result = {
+    itemNumberCol: -1,
+    qtyCol: -1,
+    dateCol: -1,
+    descCol: -1,
+  }
+  
+  const itemNumberKeywords = ['generic item number', 'item number', 'generic', 'رقم البند', 'كود']
+  const qtyKeywords = ['pick qty', 'quantity', 'qty', 'الكمية', 'صرف']
+  const dateKeywords = ['date', 'creation', 'تاريخ', 'confirm', 'approve']
+  const descKeywords = ['description', 'وصف', 'trade description', 'name']
+  
+  headers.forEach((header, index) => {
+    const h = String(header).toLowerCase().trim()
+    if (result.itemNumberCol === -1 && itemNumberKeywords.some(k => h.includes(k))) result.itemNumberCol = index
+    if (result.qtyCol === -1 && qtyKeywords.some(k => h.includes(k))) result.qtyCol = index
+    if (result.dateCol === -1 && dateKeywords.some(k => h.includes(k))) result.dateCol = index
+    if (result.descCol === -1 && descKeywords.some(k => h.includes(k))) result.descCol = index
+  })
+  
+  return result
 }
 
 interface MovementPageProps {
@@ -59,6 +84,7 @@ export function MovementPage({ system }: MovementPageProps) {
   const [classCounts, setClassCounts] = useState<ClassCount[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState('')
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [total, setTotal] = useState(0)
@@ -120,32 +146,153 @@ export function MovementPage({ system }: MovementPageProps) {
 
     setUploading(true)
     setUploadMessage(null)
+    setUploadProgress('جاري قراءة الملف...')
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('system', system)
+      // تحميل مكتبة xlsx ديناميكياً في المتصفح
+      const XLSX = await import('xlsx')
+      setUploadProgress('جاري تحليل البيانات...')
 
-      const res = await fetch('/api/movement', {
-        method: 'POST',
-        body: formData
-      })
+      // قراءة الملف في المتصفح
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: 'array' })
+      const sheetName = workbook.SheetNames[0]
+      const sheet = workbook.Sheets[sheetName]
+      const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
 
-      const data = await res.json()
-
-      if (data.success) {
-        setUploadMessage({ 
-          type: 'success', 
-          text: `✅ تم تحليل ${data.stats.uniqueItems} بند من ${data.stats.totalRecords} سجل - ${systemName}` 
-        })
-        fetchData()
-      } else {
-        setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في التحليل' })
+      if (rawData.length < 2) {
+        setUploadMessage({ type: 'error', text: 'الملف فارغ أو لا يحتوي بيانات' })
+        setUploading(false)
+        return
       }
-    } catch (error) {
-      setUploadMessage({ type: 'error', text: 'حدث خطأ في الاتصال' })
+
+      // تحليل الأعمدة
+      const headers = rawData[0] as string[]
+      const colMap = analyzeColumns(headers)
+
+      if (colMap.itemNumberCol === -1 || colMap.qtyCol === -1) {
+        setUploadMessage({ type: 'error', text: 'لم يتم العثور على أعمدة مطلوبة (رقم البند / الكمية)' })
+        setUploading(false)
+        return
+      }
+
+      // تجميع البيانات حسب رقم البند
+      const movementMap = new Map<string, {
+        totalQty: number
+        transactionCount: number
+        description: string
+        dates: string[]
+      }>()
+
+      let dateFrom: string | null = null
+      let dateTo: string | null = null
+
+      for (let i = 1; i < rawData.length; i++) {
+        const row = rawData[i]
+        if (!row || row.length === 0) continue
+
+        const itemNumber = String(row[colMap.itemNumberCol] || '').trim()
+        const qty = parseFloat(row[colMap.qtyCol]) || 0
+
+        if (!itemNumber || qty <= 0) continue
+
+        const description = colMap.descCol !== -1 ? String(row[colMap.descCol] || '') : ''
+
+        // استخراج التاريخ
+        let dateStr: string | null = null
+        if (colMap.dateCol !== -1 && row[colMap.dateCol]) {
+          const dateValue = row[colMap.dateCol]
+          let date: Date | null = null
+          if (typeof dateValue === 'number') {
+            date = new Date((dateValue - 25569) * 86400 * 1000)
+          } else {
+            date = new Date(dateValue)
+          }
+          if (!isNaN(date.getTime())) {
+            dateStr = date.toISOString()
+            if (!dateFrom || dateStr < dateFrom) dateFrom = dateStr
+            if (!dateTo || dateStr > dateTo) dateTo = dateStr
+          }
+        }
+
+        const existing = movementMap.get(itemNumber) || {
+          totalQty: 0,
+          transactionCount: 0,
+          description: '',
+          dates: [] as string[]
+        }
+
+        existing.totalQty += qty
+        existing.transactionCount += 1
+        if (description && !existing.description) {
+          existing.description = description.substring(0, 200)
+        }
+        if (dateStr) {
+          existing.dates.push(dateStr)
+        }
+
+        movementMap.set(itemNumber, existing)
+
+        // تحديث التقدم كل 5000 صف
+        if (i % 5000 === 0) {
+          setUploadProgress(`جاري تحليل الصف ${i.toLocaleString('ar-SA')} من ${(rawData.length - 1).toLocaleString('ar-SA')}...`)
+        }
+      }
+
+      setUploadProgress(`جاري إرسال البيانات (${movementMap.size.toLocaleString('ar-SA')} بند)...`)
+
+      // إرسال البيانات المجمعة إلى السيرفر (بدون الملف الكبير)
+      const aggregatedItems = Array.from(movementMap.entries()).map(([itemNumber, stats]) => ({
+        genericItemNumber: itemNumber,
+        description: stats.description,
+        totalQty: stats.totalQty,
+        transactionCount: stats.transactionCount,
+        dates: stats.dates
+      }))
+
+      // إرسال على دفعات لتجنب مشاكل الحجم
+      const batchSize = 500
+      let totalSaved = 0
+
+      for (let i = 0; i < aggregatedItems.length; i += batchSize) {
+        const batch = aggregatedItems.slice(i, i + batchSize)
+        
+        const res = await fetch('/api/movement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: batch,
+            system,
+            fileName: file.name,
+            totalRecords: rawData.length - 1,
+            uniqueItems: movementMap.size,
+            dateFrom,
+            dateTo
+          })
+        })
+
+        const data = await res.json()
+
+        if (data.success) {
+          totalSaved += (data.stats?.savedItems || batch.length)
+        } else {
+          setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في التحليل' })
+          setUploading(false)
+          return
+        }
+      }
+
+      setUploadMessage({ 
+        type: 'success', 
+        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}` 
+      })
+      fetchData()
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      setUploadMessage({ type: 'error', text: `حدث خطأ: ${error.message || 'خطأ في الاتصال'}` })
     } finally {
       setUploading(false)
+      setUploadProgress('')
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -164,13 +311,6 @@ export function MovementPage({ system }: MovementPageProps) {
     name: c.class,
     البنود: c.count,
     color: MOVEMENT_COLORS[c.class as keyof typeof MOVEMENT_COLORS] || '#999'
-  }))
-
-  // أعلى 10 بنود حركة
-  const topItems = items.slice(0, 10).map(item => ({
-    name: item.description?.substring(0, 20) || item.genericItemNumber,
-    الكمية: item.totalQtyDispatched,
-    المعاملات: item.transactionCount
   }))
 
   const totalPages = Math.ceil(total / pageSize)
@@ -236,6 +376,9 @@ export function MovementPage({ system }: MovementPageProps) {
               )}
             </Button>
           </div>
+          {uploadProgress && (
+            <p className="text-xs text-blue-600">{uploadProgress}</p>
+          )}
         </div>
       </div>
 
@@ -276,7 +419,7 @@ export function MovementPage({ system }: MovementPageProps) {
                   {c.count.toLocaleString('ar-SA')}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {((c.count / total) * 100).toFixed(1)}%
+                  {total > 0 ? ((c.count / total) * 100).toFixed(1) : 0}%
                 </p>
               </CardContent>
             </Card>

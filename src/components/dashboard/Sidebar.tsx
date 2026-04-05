@@ -14,6 +14,7 @@ interface UserPermissions {
   canViewKidney: boolean
   canViewCentral: boolean
   canViewReports: boolean
+  canViewMovement: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
 }
@@ -50,10 +51,10 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
     { id: 'central', label: 'البنود المركزية', icon: Building2, perm: 'canViewCentral' as keyof UserPermissions },
     { id: 'reports', label: 'التقارير', icon: FileText, perm: 'canViewReports' as keyof UserPermissions },
     { id: '_divider_movement', label: '---', icon: Activity, perm: null },
-    { id: 'movement', label: 'تحليل الحركة', icon: Activity, perm: null },
-    { id: 'fast-movement', label: 'بنود سريعة الحركة', icon: Flame, perm: null },
-    { id: 'slow-movement', label: 'بنود قليلة الحركة', icon: Snowflake, perm: null },
-    { id: 'no-movement', label: 'بنود عديمة الحركة', icon: Zap, perm: null },
+    { id: 'movement', label: 'تحليل الحركة', icon: Activity, perm: 'canViewMovement' as keyof UserPermissions },
+    { id: 'fast-movement', label: 'بنود سريعة الحركة', icon: Flame, perm: 'canViewMovement' as keyof UserPermissions },
+    { id: 'slow-movement', label: 'بنود قليلة الحركة', icon: Snowflake, perm: 'canViewMovement' as keyof UserPermissions },
+    { id: 'no-movement', label: 'بنود عديمة الحركة', icon: Zap, perm: 'canViewMovement' as keyof UserPermissions },
   ]
 
   // إضافة عنصر إدارة المستخدمين للأدمن

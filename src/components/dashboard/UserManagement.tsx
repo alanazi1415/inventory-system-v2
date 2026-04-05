@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { 
   Users, UserPlus, Edit2, Trash2, Save, X, Check, Package, AlertTriangle, Clock, 
-  Heart, Syringe, Shield, Cigarette, Droplets, Building2, FileText, Database
+  Heart, Syringe, Shield, Cigarette, Droplets, Building2, FileText, Database, Activity
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -28,6 +28,7 @@ const PERMISSIONS: Permission[] = [
   { key: 'canViewKidney', label: 'بنود الكلى', icon: Droplets },
   { key: 'canViewCentral', label: 'البنود المركزية', icon: Building2 },
   { key: 'canViewReports', label: 'التقارير', icon: FileText },
+  { key: 'canViewMovement', label: 'تحليل الحركة', icon: Activity },
 ]
 
 const SYSTEM_PERMISSIONS: Permission[] = [
@@ -51,6 +52,7 @@ interface User {
   canViewKidney: boolean
   canViewCentral: boolean
   canViewReports: boolean
+  canViewMovement: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
   createdAt: string
@@ -78,6 +80,7 @@ export function UserManagement() {
     canViewKidney: true,
     canViewCentral: true,
     canViewReports: true,
+    canViewMovement: true,
     canViewHoz: true,
     canViewMwsal: true,
   })
@@ -116,6 +119,7 @@ export function UserManagement() {
       canViewKidney: true,
       canViewCentral: true,
       canViewReports: true,
+      canViewMovement: true,
       canViewHoz: true,
       canViewMwsal: true,
     })
@@ -141,6 +145,7 @@ export function UserManagement() {
       canViewKidney: user.canViewKidney,
       canViewCentral: user.canViewCentral,
       canViewReports: user.canViewReports,
+      canViewMovement: user.canViewMovement,
       canViewHoz: user.canViewHoz,
       canViewMwsal: user.canViewMwsal,
     })
@@ -217,6 +222,7 @@ export function UserManagement() {
       canViewKidney: value,
       canViewCentral: value,
       canViewReports: value,
+      canViewMovement: value,
       canViewHoz: value,
       canViewMwsal: value,
     }))
