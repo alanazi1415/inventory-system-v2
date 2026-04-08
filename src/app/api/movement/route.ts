@@ -340,10 +340,17 @@ export async function GET(request: NextRequest) {
       ]
     }
 
+    // تحديد الترتيب بناءً على الفلتر
+    // عند فلتر "عديم الحركة"، نرتب حسب رقم البند (أبجدياً)
+    // وإلا نرتب حسب درجة الحركة (الأعلى أولاً)
+    const orderBy = movementClass === 'عديم الحركة' 
+      ? { genericItemNumber: 'asc' as const }
+      : { movementScore: 'desc' as const }
+
     const [items, total, classCounts] = await Promise.all([
       db.itemMovement.findMany({
         where,
-        orderBy: { movementScore: 'desc' },
+        orderBy,
         take: limit,
         skip: offset
       }),
