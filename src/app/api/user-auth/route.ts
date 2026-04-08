@@ -56,7 +56,10 @@ export async function POST(request: NextRequest) {
             canViewReports: user.canViewReports,
             canViewMovement: user.canViewMovement,
             canViewHoz: user.canViewHoz,
-            canViewMwsal: user.canViewMwsal
+            canViewMwsal: user.canViewMwsal,
+            canEditMovementSettings: user.canEditMovementSettings,
+            canViewTopUp: user.canViewTopUp,
+            canCalculateTopUp: user.canCalculateTopUp
           }
         }
       })
@@ -101,7 +104,10 @@ export async function GET() {
               canViewReports: userSession.user.canViewReports,
               canViewMovement: userSession.user.canViewMovement,
               canViewHoz: userSession.user.canViewHoz,
-              canViewMwsal: userSession.user.canViewMwsal
+              canViewMwsal: userSession.user.canViewMwsal,
+              canEditMovementSettings: userSession.user.canEditMovementSettings,
+              canViewTopUp: userSession.user.canViewTopUp,
+              canCalculateTopUp: userSession.user.canCalculateTopUp
             }
           }
         })

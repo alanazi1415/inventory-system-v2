@@ -51,24 +51,25 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
 
   const checkEditPermission = async () => {
     try {
-      // جلب صلاحيات المستخدم الحالي
-      const res = await fetch('/api/user-auth/me')
+      // التحقق من صلاحية الأدمن أولاً
+      const adminRes = await fetch('/api/admin/check-session')
+      const adminData = await adminRes.json()
+      if (adminData.authenticated === true) {
+        setCanEdit(true)
+        return
+      }
+
+      // التحقق من صلاحية المستخدم
+      const res = await fetch('/api/user-auth')
       if (res.ok) {
         const data = await res.json()
-        if (data.user) {
+        if (data.authenticated && data.user) {
           // المستخدم لديه صلاحية التعديل
-          setCanEdit(!!data.user.canEditMovementSettings)
+          setCanEdit(!!data.user.permissions?.canEditMovementSettings)
         }
       }
     } catch {
-      // إذا فشل، نتحقق من صلاحية الأدمن
-      try {
-        const adminRes = await fetch('/api/admin/check-session')
-        const adminData = await adminRes.json()
-        setCanEdit(adminData.authenticated === true)
-      } catch {
-        setCanEdit(false)
-      }
+      setCanEdit(false)
     }
   }
 
