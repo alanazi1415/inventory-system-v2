@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
   TrendingUp, TrendingDown, Minus, Upload, Search, Filter, 
   Package, Activity, BarChart3, PieChart as PieChartIcon, RefreshCw,
-  Flame, Zap, Clock, Snowflake, Download
+  Flame, Zap, Clock, Snowflake, Download, Link2, Database
 } from "lucide-react"
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -121,6 +121,7 @@ export function MovementPage({ system }: MovementPageProps) {
   const [page, setPage] = useState(1)
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const pageSize = 50
@@ -163,6 +164,41 @@ export function MovementPage({ system }: MovementPageProps) {
     }, 500)
     return () => clearTimeout(timer)
   }, [search])
+
+  // مزامنة البنود من المخزون
+  const handleSync = async () => {
+    setSyncing(true)
+    setUploadMessage(null)
+
+    try {
+      const res = await fetch('/api/movement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system,
+          syncInventory: true
+        })
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        const stats = data.stats
+        let msg = `✅ تمت المزامنة بنجاح\n`
+        msg += `📦 إجمالي البنود في المخزون: ${stats.total}\n`
+        msg += `❄️ بنود عديمة الحركة (بدون صرف): ${stats.withoutMovement}\n`
+        msg += `➕ تمت الإضافة: ${stats.added}`
+        setUploadMessage({ type: 'success', text: msg })
+        fetchData()
+      } else {
+        setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في المزامنة' })
+      }
+    } catch (error: any) {
+      setUploadMessage({ type: 'error', text: 'حدث خطأ في الاتصال' })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleExportExcel = async () => {
     setExporting(true)
@@ -336,9 +372,17 @@ export function MovementPage({ system }: MovementPageProps) {
         }
       }
 
+      // مزامنة البنود من المخزون
+      setUploadProgress('جاري مزامنة البنود من المخزون...')
+      try {
+        await fetch(`/api/movement?system=${system}&sync=true`)
+      } catch (e) {
+        console.error('Sync error:', e)
+      }
+      
       setUploadMessage({ 
         type: 'success', 
-        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}` 
+        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n📦 تمت مزامنة البنود من المخزون` 
       })
       fetchData()
     } catch (error: any) {
@@ -407,6 +451,26 @@ export function MovementPage({ system }: MovementPageProps) {
             <Button
               variant="outline"
               size="sm"
+              onClick={handleSync}
+              disabled={syncing}
+              className="gap-2"
+              title="مزامنة البنود من المخزون (إضافة البنود بدون صرف كعديمة الحركة)"
+            >
+              {syncing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  جاري المزامنة...
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-4 h-4" />
+                  مزامنة المخزون
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleExportExcel}
               disabled={exporting || total === 0}
               className="gap-2"
@@ -453,13 +517,17 @@ export function MovementPage({ system }: MovementPageProps) {
         </div>
       )}
 
-      {/* تنبيه المستودع */}
+      {/* تنبيه المستودع والمزامنة */}
       <div className={`p-4 rounded-lg border ${system === 'mwsal' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
-        <p className="text-sm">
-          <strong>ملاحظة:</strong> سيتم حفظ البيانات في <strong>{systemName}</strong> فقط.
-          {system === 'mwsal' ? ' (مستودع موصول E300)' : ' (مستودع هوز E200)'}
-          إذا أردت رفع تقرير للمستودع الآخر، غيّر المستودع من القائمة الجانبية أولاً.
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm">
+            <strong>📌 ملاحظة:</strong> سيتم حفظ البيانات في <strong>{systemName}</strong> فقط.
+            {system === 'mwsal' ? ' (مستودع موصول E300)' : ' (مستودع هوز E200)'}
+          </p>
+          <p className="text-sm">
+            <strong>🔗 المزامنة:</strong> اضغط "مزامنة المخزون" لإضافة البنود الموجودة في المخزون والتي ليس لها سجلات صرف كـ <strong>"عديمة الحركة"</strong>.
+          </p>
+        </div>
       </div>
 
       {/* ملخص التصنيفات */}
@@ -524,8 +592,10 @@ export function MovementPage({ system }: MovementPageProps) {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[250px] text-gray-400">
-                لا توجد بيانات - ارفع تقرير الحركة
+              <div className="flex flex-col items-center justify-center h-[250px] text-gray-400 gap-2">
+                <Database className="w-12 h-12 opacity-50" />
+                <p>لا توجد بيانات</p>
+                <p className="text-sm">ارفع تقرير الحركة أو اضغط "مزامنة المخزون"</p>
               </div>
             )}
           </CardContent>
@@ -617,7 +687,7 @@ export function MovementPage({ system }: MovementPageProps) {
             <div className="text-center py-12 text-gray-500">
               <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>لا توجد بيانات</p>
-              <p className="text-sm mt-2">ارفع تقرير Full Dispatch من نظام BY للبدء</p>
+              <p className="text-sm mt-2">ارفع تقرير Full Dispatch من نظام BY أو اضغط "مزامنة المخزون"</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

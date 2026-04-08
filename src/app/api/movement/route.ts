@@ -85,6 +85,79 @@ function classifyMovement(transactionCount: number, totalQty: number): { movemen
   }
 }
 
+// مزامنة البنود من المخزون إلى تحليل الحركة (كعديمة حركة إذا لم يكن لها سجلات)
+async function syncInventoryToMovement(system: string) {
+  console.log(`Syncing inventory items to movement for system: ${system}`)
+  
+  // جلب جميع أرقام البنود من المخزون
+  const inventoryItems = await db.inventoryItem.findMany({
+    where: { system },
+    select: {
+      genericItemNumber: true,
+      genericItemDescription: true,
+      customerItemNumber: true,
+      tradeItemNumber: true
+    }
+  })
+  
+  // جلب جميع أرقام البنود الموجودة في تحليل الحركة
+  const existingMovements = await db.itemMovement.findMany({
+    where: { system },
+    select: { genericItemNumber: true }
+  })
+  const existingNumbers = new Set(existingMovements.map(m => m.genericItemNumber))
+  
+  // البنود التي ليس لها حركة
+  const itemsWithoutMovement: { itemNumber: string; description: string | null }[] = []
+  
+  for (const item of inventoryItems) {
+    // التحقق من جميع أرقام البند المحتملة
+    const numbers = [
+      item.genericItemNumber,
+      item.customerItemNumber,
+      item.tradeItemNumber
+    ].filter(Boolean) as string[]
+    
+    // إذا لم يكن أي من الأرقام موجوداً في تحليل الحركة
+    const hasMovement = numbers.some(n => existingNumbers.has(n))
+    
+    if (!hasMovement && numbers.length > 0) {
+      // استخدام الرقم الأول المتاح
+      itemsWithoutMovement.push({
+        itemNumber: numbers[0],
+        description: item.genericItemDescription
+      })
+    }
+  }
+  
+  console.log(`Found ${itemsWithoutMovement.length} items without movement`)
+  
+  // إضافة البنود بدون حركة كـ "عديم الحركة"
+  let addedCount = 0
+  for (const item of itemsWithoutMovement) {
+    try {
+      await db.itemMovement.create({
+        data: {
+          genericItemNumber: item.itemNumber,
+          description: item.description,
+          system,
+          totalQtyDispatched: 0,
+          transactionCount: 0,
+          avgQtyPerTransaction: 0,
+          movementClass: 'عديم الحركة',
+          movementScore: 0,
+          reportSource: 'مزامنة تلقائية من المخزون'
+        }
+      })
+      addedCount++
+    } catch (e) {
+      // قد يكون موجوداً بالفعل (unique constraint)
+    }
+  }
+  
+  return { total: inventoryItems.length, added: addedCount, withoutMovement: itemsWithoutMovement.length }
+}
+
 // رفع وتحليل تقرير الحركة (يستقبل JSON من المتصفح بدل ملف)
 export async function POST(request: NextRequest) {
   try {
@@ -93,106 +166,131 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
     
-    const body = await request.json()
-    const { items, system, fileName, totalRecords, dateFrom, dateTo } = body
+    // التحقق من نوع الطلب (مزامنة أم رفع)
+    const contentType = request.headers.get('content-type') || ''
     
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'لا توجد بيانات' }, { status: 400 })
-    }
-    
-    console.log(`Processing ${items.length} aggregated items for system: ${system}`)
-    
-    // حفظ في قاعدة البيانات
-    let savedCount = 0
-    
-    for (const item of items) {
-      const genericItemNumber = item.genericItemNumber
-      const totalQty = item.totalQty || 0
-      const transactionCount = item.transactionCount || 0
-      const description = item.description || ''
+    // إذا كان طلب مزامنة
+    if (contentType.includes('application/json')) {
+      const body = await request.json()
       
-      const { movementClass, score } = classifyMovement(transactionCount, totalQty)
-      
-      // حساب الفترة الزمنية
-      let daysSpan = 0
-      let firstDate: Date | null = null
-      let lastDate: Date | null = null
-      
-      const dates = item.dates || []
-      if (dates.length > 0) {
-        const sortedDates = dates.map((d: string) => new Date(d)).sort((a: Date, b: Date) => a.getTime() - b.getTime())
-        firstDate = sortedDates[0]
-        lastDate = sortedDates[sortedDates.length - 1]
-        daysSpan = Math.ceil(((lastDate?.getTime() ?? 0) - (firstDate?.getTime() ?? 0)) / (1000 * 60 * 60 * 24))
+      // طلب مزامنة المخزون
+      if (body.syncInventory) {
+        const system = body.system || 'mwsal'
+        const result = await syncInventoryToMovement(system)
+        return NextResponse.json({
+          success: true,
+          message: 'تمت المزامنة بنجاح',
+          stats: result
+        })
       }
       
-      try {
-        await db.itemMovement.upsert({
-          where: {
-            genericItemNumber_system: {
+      // رفع عادي (JSON data)
+      const { items, system, fileName, totalRecords, dateFrom, dateTo } = body
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return NextResponse.json({ error: 'لا توجد بيانات' }, { status: 400 })
+      }
+      
+      console.log(`Processing ${items.length} aggregated items for system: ${system}`)
+      
+      // حفظ في قاعدة البيانات
+      let savedCount = 0
+      
+      for (const item of items) {
+        const genericItemNumber = item.genericItemNumber
+        const totalQty = item.totalQty || 0
+        const transactionCount = item.transactionCount || 0
+        const description = item.description || ''
+        
+        const { movementClass, score } = classifyMovement(transactionCount, totalQty)
+        
+        // حساب الفترة الزمنية
+        let daysSpan = 0
+        let firstDate: Date | null = null
+        let lastDate: Date | null = null
+        
+        const dates = item.dates || []
+        if (dates.length > 0) {
+          const sortedDates = dates.map((d: string) => new Date(d)).sort((a: Date, b: Date) => a.getTime() - b.getTime())
+          firstDate = sortedDates[0]
+          lastDate = sortedDates[sortedDates.length - 1]
+          daysSpan = Math.ceil(((lastDate?.getTime() ?? 0) - (firstDate?.getTime() ?? 0)) / (1000 * 60 * 60 * 24))
+        }
+        
+        try {
+          await db.itemMovement.upsert({
+            where: {
+              genericItemNumber_system: {
+                genericItemNumber,
+                system
+              }
+            },
+            update: {
+              description,
+              totalQtyDispatched: totalQty,
+              transactionCount,
+              avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
+              firstDispatchDate: firstDate,
+              lastDispatchDate: lastDate,
+              daysSpan,
+              movementClass,
+              movementScore: score,
+              lastAnalysisDate: new Date(),
+              reportSource: fileName
+            },
+            create: {
               genericItemNumber,
-              system
+              description,
+              system,
+              totalQtyDispatched: totalQty,
+              transactionCount,
+              avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
+              firstDispatchDate: firstDate,
+              lastDispatchDate: lastDate,
+              daysSpan,
+              movementClass,
+              movementScore: score,
+              reportSource: fileName
             }
-          },
-          update: {
-            description,
-            totalQtyDispatched: totalQty,
-            transactionCount,
-            avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
-            firstDispatchDate: firstDate,
-            lastDispatchDate: lastDate,
-            daysSpan,
-            movementClass,
-            movementScore: score,
-            lastAnalysisDate: new Date(),
-            reportSource: fileName
-          },
-          create: {
-            genericItemNumber,
-            description,
+          })
+          savedCount++
+        } catch (e) {
+          console.error('Error saving item:', genericItemNumber, e)
+        }
+      }
+      
+      // تسجيل التقرير
+      try {
+        await db.movementReportLog.create({
+          data: {
+            fileName: fileName || 'unknown',
             system,
-            totalQtyDispatched: totalQty,
-            transactionCount,
-            avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
-            firstDispatchDate: firstDate,
-            lastDispatchDate: lastDate,
-            daysSpan,
-            movementClass,
-            movementScore: score,
-            reportSource: fileName
+            recordsCount: totalRecords || 0,
+            itemsCount: items.length,
+            dateFrom: dateFrom ? new Date(dateFrom) : null,
+            dateTo: dateTo ? new Date(dateTo) : null
           }
         })
-        savedCount++
       } catch (e) {
-        console.error('Error saving item:', genericItemNumber, e)
+        console.error('Error logging report:', e)
       }
-    }
-    
-    // تسجيل التقرير
-    try {
-      await db.movementReportLog.create({
-        data: {
-          fileName: fileName || 'unknown',
-          system,
-          recordsCount: totalRecords || 0,
-          itemsCount: items.length,
-          dateFrom: dateFrom ? new Date(dateFrom) : null,
-          dateTo: dateTo ? new Date(dateTo) : null
+      
+      // مزامنة البنود من المخزون بعد الرفع
+      const syncResult = await syncInventoryToMovement(system)
+      
+      return NextResponse.json({
+        success: true,
+        message: 'تم تحليل التقرير بنجاح',
+        stats: {
+          totalRecords: totalRecords || 0,
+          uniqueItems: items.length,
+          savedItems: savedCount,
+          syncedFromInventory: syncResult
         }
       })
-    } catch (e) {
-      console.error('Error logging report:', e)
     }
     
-    return NextResponse.json({
-      success: true,
-      message: 'تم تحليل التقرير بنجاح',
-      stats: {
-        totalRecords: totalRecords || 0,
-        uniqueItems: items.length,
-        savedItems: savedCount
-      }
-    })
+    return NextResponse.json({ error: 'نوع الطلب غير مدعوم' }, { status: 400 })
     
   } catch (error: any) {
     console.error('Movement upload error:', error)
@@ -212,6 +310,17 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const limit = parseInt(searchParams.get('limit') || '100')
     const offset = parseInt(searchParams.get('offset') || '0')
+    const sync = searchParams.get('sync') === 'true'
+
+    // إذا كان طلب مزامنة
+    if (sync) {
+      const result = await syncInventoryToMovement(system)
+      return NextResponse.json({
+        success: true,
+        message: 'تمت المزامنة بنجاح',
+        stats: result
+      })
+    }
 
     // دعم عدة تصنيفات عبر تكرار معامل class
     const allClasses = searchParams.getAll('class').filter(c => c && c !== 'all')
