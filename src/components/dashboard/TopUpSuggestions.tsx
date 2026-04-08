@@ -131,33 +131,27 @@ export function TopUpSuggestions({ system }: TopUpSuggestionsProps) {
 
   const handleExport = async () => {
     try {
-      const res = await fetch(`/api/movement/topup?system=${system}&limit=10000`)
-      const data = await res.json()
-      
-      if (data.success && data.suggestions.length > 0) {
-        // تحويل إلى CSV
-        const headers = ['رقم البند', 'الوصف', 'المخزون الحالي', 'المخزون المتاح', 'متوسط الاستهلاك اليومي', 'أيام المخزون', 'الكمية المقترحة', 'مستوى الإلحاح']
-        const rows = data.suggestions.map((s: TopUpItem) => [
-          s.genericItemNumber,
-          s.description || '',
-          s.currentStock,
-          s.availableStock,
-          s.avgDailyConsumption.toFixed(2),
-          s.daysOfStock.toFixed(1),
-          Math.ceil(s.suggestedQty),
-          s.urgencyLevel
-        ])
-        
-        const csv = [headers.join(','), ...rows.map((r: any[]) => r.join(','))].join('\n')
-        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-        const link = document.createElement('a')
-        link.href = URL.createObjectURL(blob)
-        link.download = `اقتراحات_التغذية_${system}_${new Date().toISOString().split('T')[0]}.csv`
-        link.click()
-        URL.revokeObjectURL(link.href)
+      let url = `/api/export/topup?system=${system}`
+      if (selectedUrgency !== 'all') {
+        url += `&urgency=${encodeURIComponent(selectedUrgency)}`
       }
-    } catch (error) {
+      
+      const res = await fetch(url)
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || 'حدث خطأ في التصدير')
+      }
+      
+      const blob = await res.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `اقتراحات_التغذية_${system}_${new Date().toISOString().split('T')[0]}.xlsx`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (error: any) {
       console.error('Export error:', error)
+      alert(error.message || 'حدث خطأ في التصدير')
     }
   }
 
