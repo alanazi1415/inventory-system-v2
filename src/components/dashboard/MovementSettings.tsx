@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Settings, Save, RotateCcw, AlertTriangle } from "lucide-react"
+import { Settings, Save, RotateCcw, AlertTriangle, Lock } from "lucide-react"
 
 interface ThresholdSettingsProps {
   system: 'hoz' | 'mwsal'
@@ -42,10 +42,22 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [isDefault, setIsDefault] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     fetchThresholds()
+    checkAdminStatus()
   }, [system])
+
+  const checkAdminStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/check-session')
+      const data = await res.json()
+      setIsAdmin(data.authenticated === true)
+    } catch {
+      setIsAdmin(false)
+    }
+  }
 
   const fetchThresholds = async () => {
     setLoading(true)
@@ -76,6 +88,11 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
   }
 
   const handleSave = async () => {
+    if (!isAdmin) {
+      setMessage({ type: 'error', text: '⚠️ يجب تسجيل الدخول كمدير لتعديل الإعدادات' })
+      return
+    }
+    
     setSaving(true)
     setMessage(null)
     
@@ -106,6 +123,11 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
   }
 
   const handleReset = async () => {
+    if (!isAdmin) {
+      setMessage({ type: 'error', text: '⚠️ يجب تسجيل الدخول كمدير لإعادة الإعدادات' })
+      return
+    }
+    
     if (!confirm('هل أنت متأكد من إعادة الإعدادات للقيم الافتراضية؟')) return
     
     try {
@@ -151,6 +173,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
             <CardTitle className="flex items-center gap-2 text-lg">
               <Settings className="w-5 h-5 text-blue-500" />
               إعدادات تصنيف الحركة
+              {!isAdmin && <Lock className="w-4 h-4 text-orange-500" />}
             </CardTitle>
             <CardDescription>
               خصص حدود تصنيف البنود حسب احتياجاتك
@@ -163,6 +186,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
               size="sm"
               onClick={handleReset}
               className="gap-2"
+              disabled={!isAdmin}
             >
               <RotateCcw className="w-4 h-4" />
               إعادة الافتراضي
@@ -186,6 +210,15 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
           </div>
         )}
 
+        {!isAdmin && (
+          <div className="flex items-start gap-2 p-3 bg-orange-50 text-orange-700 rounded-lg text-sm">
+            <Lock className="w-5 h-5 flex-shrink-0" />
+            <div>
+              <strong>ملاحظة:</strong> أنت تستعرض الإعدادات فقط. لتعديلها يجب تسجيل الدخول كمدير.
+            </div>
+          </div>
+        )}
+
         {/* حدود التصنيف */}
         <div className="space-y-4">
           <h4 className="font-semibold text-gray-700 border-b pb-2">📊 حدود تصنيف الحركة</h4>
@@ -205,6 +238,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.veryFastMinTransactions}
                 onChange={(e) => updateThreshold('veryFastMinTransactions', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
             </div>
             <div>
@@ -214,6 +248,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.veryFastMinQty}
                 onChange={(e) => updateThreshold('veryFastMinQty', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
             </div>
           </div>
@@ -233,6 +268,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.fastMinTransactions}
                 onChange={(e) => updateThreshold('fastMinTransactions', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
             </div>
             <div>
@@ -242,6 +278,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.fastMinQty}
                 onChange={(e) => updateThreshold('fastMinQty', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
             </div>
           </div>
@@ -261,6 +298,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.mediumMinTransactions}
                 onChange={(e) => updateThreshold('mediumMinTransactions', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
             </div>
             <div>
@@ -270,6 +308,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.mediumMinQty}
                 onChange={(e) => updateThreshold('mediumMinQty', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
             </div>
           </div>
@@ -289,6 +328,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.slowMinTransactions}
                 onChange={(e) => updateThreshold('slowMinTransactions', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
             </div>
             <div></div>
@@ -307,6 +347,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.topUpDaysToAnalyze}
                 onChange={(e) => updateThreshold('topUpDaysToAnalyze', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
               <p className="text-xs text-gray-400 mt-1">عدد الأيام السابقة لحساب متوسط الاستهلاك</p>
             </div>
@@ -318,6 +359,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.topUpSafetyFactor}
                 onChange={(e) => updateThreshold('topUpSafetyFactor', parseFloat(e.target.value) || 1)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
               <p className="text-xs text-gray-400 mt-1">مضاعفة المخزون المطلوب للأمان (1.5 = 150%)</p>
             </div>
@@ -328,6 +370,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 value={thresholds.topUpMinStockDays}
                 onChange={(e) => updateThreshold('topUpMinStockDays', parseInt(e.target.value) || 0)}
                 className="mt-1"
+                disabled={!isAdmin}
               />
               <p className="text-xs text-gray-400 mt-1">أيام المخزون المستهدفة لكل بند</p>
             </div>
