@@ -209,3 +209,64 @@ model MovementReportLog {
   dateTo       DateTime?
   createdAt    DateTime @default(now())
 }
+
+// إعدادات حدود تصنيف الحركة (قابلة للتخصيص من المستخدم)
+model MovementThresholds {
+  id                    String   @id @default(cuid())
+  system                String   @unique // المستودع (hoz, mwsal)
+  
+  // حدود "سريع جداً"
+  veryFastMinTransactions Int    @default(50)
+  veryFastMinQty          Int    @default(5000)
+  
+  // حدود "سريع"
+  fastMinTransactions     Int    @default(20)
+  fastMinQty              Int    @default(2000)
+  
+  // حدود "متوسط"
+  mediumMinTransactions   Int    @default(10)
+  mediumMinQty            Int    @default(500)
+  
+  // حدود "بطيء"
+  slowMinTransactions     Int    @default(3)
+  
+  // إعدادات TOP UP
+  topUpDaysToAnalyze      Int    @default(90)   // عدد الأيام للتحليل
+  topUpSafetyFactor       Float  @default(1.5)  // معامل الأمان
+  topUpMinStockDays       Int    @default(30)   // الحد الأدنى لأيام المخزون
+  
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+// اقتراحات تغذية المستودع (TOP UP)
+model TopUpSuggestion {
+  id                  String   @id @default(cuid())
+  genericItemNumber   String
+  description         String?
+  system              String
+  
+  // المخزون الحالي
+  currentStock        Float    @default(0)
+  availableStock      Float    @default(0)
+  
+  // إحصائيات الصرف
+  avgDailyConsumption Float    @default(0)  // متوسط الاستهلاك اليومي
+  daysOfStock         Float    @default(0)  // أيام المخزون المتبقية
+  
+  // الاقتراح
+  suggestedQty        Float    @default(0)  // الكمية المقترحة للتغذية
+  urgencyLevel        String   @default("متوسط") // حرج، عالي، متوسط، منخفض
+  
+  // الحسابات
+  calculationDate     DateTime @default(now())
+  analysisPeriodDays  Int      @default(90)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([genericItemNumber])
+  @@index([system])
+  @@index([urgencyLevel])
+  @@unique([genericItemNumber, system])
+}

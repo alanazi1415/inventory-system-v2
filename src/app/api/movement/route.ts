@@ -68,17 +68,46 @@ async function checkMovementAccess(): Promise<boolean> {
   return checkUserMovementAuth()
 }
 
-// تصنيف الحركة
-function classifyMovement(transactionCount: number, totalQty: number): { movementClass: string; score: number } {
+// القيم الافتراضية للحدود
+const DEFAULT_THRESHOLDS = {
+  veryFastMinTransactions: 50,
+  veryFastMinQty: 5000,
+  fastMinTransactions: 20,
+  fastMinQty: 2000,
+  mediumMinTransactions: 10,
+  mediumMinQty: 500,
+  slowMinTransactions: 3
+}
+
+// جلب إعدادات الحدود من قاعدة البيانات
+async function getThresholds(system: string) {
+  try {
+    const thresholds = await db.movementThresholds.findUnique({
+      where: { system }
+    })
+    return thresholds || DEFAULT_THRESHOLDS
+  } catch (error) {
+    console.error('Error fetching thresholds:', error)
+    return DEFAULT_THRESHOLDS
+  }
+}
+
+// تصنيف الحركة باستخدام الحدود المخصصة
+async function classifyMovement(
+  transactionCount: number, 
+  totalQty: number, 
+  system: string
+): Promise<{ movementClass: string; score: number }> {
+  const thresholds = await getThresholds(system)
   const score = (transactionCount * 10) + (totalQty / 100)
   
-  if (transactionCount >= 50 && totalQty >= 5000) {
+  if (transactionCount >= thresholds.veryFastMinTransactions && totalQty >= thresholds.veryFastMinQty) {
     return { movementClass: 'سريع جداً', score }
-  } else if (transactionCount >= 20 && totalQty >= 2000) {
+  } else if (transactionCount >= thresholds.fastMinTransactions && totalQty >= thresholds.fastMinQty) {
     return { movementClass: 'سريع', score }
-  } else if (transactionCount >= 10 && totalQty >= 500) {
+  } else if (transactionCount >= thresholds.mediumMinTransactions && totalQty >= thresholds.mediumMinQty) {
     return { movementClass: 'متوسط', score }
-  } else if (transactionCount >= 3) {
+  } else if (transactionCount >= thresholds.slowMinTransactions) {
     return { movementClass: 'بطيء', score }
   } else {
     return { movementClass: 'عديم الحركة', score }
@@ -231,7 +260,7 @@ export async function POST(request: NextRequest) {
         const transactionCount = item.transactionCount || 0
         const description = item.description || ''
         
-        const { movementClass, score } = classifyMovement(transactionCount, totalQty)
+        const { movementClass, score } = await classifyMovement(transactionCount, totalQty, system)
         
         // حساب الفترة الزمنية
         let daysSpan = 0

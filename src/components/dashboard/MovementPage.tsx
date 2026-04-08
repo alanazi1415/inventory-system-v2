@@ -7,12 +7,15 @@ import { Badge } from "@/components/ui/badge"
 import { 
   TrendingUp, TrendingDown, Minus, Upload, Search, Filter, 
   Package, Activity, BarChart3, PieChart as PieChartIcon, RefreshCw,
-  Flame, Zap, Clock, Snowflake, Download, Link2, Database
+  Flame, Zap, Clock, Snowflake, Download, Link2, Database, Settings,
+  Calculator
 } from "lucide-react"
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, Legend, ResponsiveContainer, LineChart, Line
 } from 'recharts'
+import { MovementSettings } from './MovementSettings'
+import { TopUpSuggestions } from './TopUpSuggestions'
 
 interface MovementItem {
   id: string
@@ -109,7 +112,10 @@ interface MovementPageProps {
   system: 'hoz' | 'mwsal'
 }
 
+type TabType = 'analysis' | 'topup' | 'settings'
+
 export function MovementPage({ system }: MovementPageProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('analysis')
   const [items, setItems] = useState<MovementItem[]>([])
   const [classCounts, setClassCounts] = useState<ClassCount[]>([])
   const [loading, setLoading] = useState(true)
@@ -151,8 +157,10 @@ export function MovementPage({ system }: MovementPageProps) {
   }
 
   useEffect(() => {
-    fetchData()
-  }, [system, page, selectedClass])
+    if (activeTab === 'analysis') {
+      fetchData()
+    }
+  }, [system, page, selectedClass, activeTab])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -436,362 +444,407 @@ export function MovementPage({ system }: MovementPageProps) {
     }
   }
 
+  const tabs = [
+    { id: 'analysis' as TabType, label: 'تحليل الحركة', icon: Activity },
+    { id: 'topup' as TabType, label: 'اقتراحات التغذية', icon: Calculator },
+    { id: 'settings' as TabType, label: 'الإعدادات', icon: Settings },
+  ]
+
   return (
     <div className="p-6 space-y-6" dir="rtl">
-      {/* العنوان */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="w-6 h-6 text-blue-500" />
-            تحليل حركة البنود
-          </h2>
-          <p className="text-gray-500">{systemName} • {total.toLocaleString('ar-SA')} بند</p>
-        </div>
-        
-        {/* رفع التقرير + تصدير */}
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${system === 'mwsal' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-              المستودع: {systemName}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSync}
-              disabled={syncing}
-              className="gap-2"
-              title="مزامنة البنود من المخزون (إضافة البنود بدون صرف كعديمة الحركة)"
-            >
-              {syncing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  جاري المزامنة...
-                </>
-              ) : (
-                <>
-                  <Link2 className="w-4 h-4" />
-                  مزامنة المخزون
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportExcel}
-              disabled={exporting || total === 0}
-              className="gap-2"
-            >
-              <Download className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} />
-              {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleUpload}
-              className="hidden"
-              id="movement-upload"
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className={`gap-2 ${system === 'mwsal' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-            >
-              {uploading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  جاري التحليل...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  رفع تقرير الحركة
-                </>
-              )}
-            </Button>
-          </div>
-          {uploadProgress && (
-            <p className="text-xs text-blue-600">{uploadProgress}</p>
-          )}
+      {/* التبويبات */}
+      <div className="border-b">
+        <div className="flex gap-1">
+          {tabs.map(tab => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  isActive 
+                    ? 'border-blue-500 text-blue-600 bg-blue-50/50' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* رسالة الرفع */}
-      {uploadMessage && (
-        <div className={`p-4 rounded-lg ${uploadMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {uploadMessage.text}
-        </div>
-      )}
-
-      {/* تنبيه المستودع والمزامنة */}
-      <div className={`p-4 rounded-lg border ${system === 'mwsal' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
-        <div className="space-y-2">
-          <p className="text-sm">
-            <strong>📌 ملاحظة:</strong> سيتم حفظ البيانات في <strong>{systemName}</strong> فقط.
-            {system === 'mwsal' ? ' (مستودع موصول E300)' : ' (مستودع هوز E200)'}
-          </p>
-          <p className="text-sm">
-            <strong>🔗 المزامنة:</strong> اضغط "مزامنة المخزون" لإضافة البنود الموجودة في المخزون والتي ليس لها سجلات صرف كـ <strong>"عديمة الحركة"</strong>.
-          </p>
-        </div>
-      </div>
-
-      {/* ملخص التصنيفات */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {classCounts.map(c => {
-          const color = MOVEMENT_COLORS[c.class as keyof typeof MOVEMENT_COLORS] || '#999'
-          const isSelected = selectedClass === c.class
-          return (
-            <Card 
-              key={c.class}
-              className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
-              onClick={() => setSelectedClass(isSelected ? 'all' : c.class)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                  {getMovementIcon(c.class)}
-                  <span className="text-sm font-medium">{c.class}</span>
-                </div>
-                <p className="text-2xl font-bold" style={{ color }}>
-                  {c.count.toLocaleString('ar-SA')}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {total > 0 ? ((c.count / total) * 100).toFixed(1) : 0}%
-                </p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      {/* الرسوم البيانية */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* رسم دائري */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <PieChartIcon className="w-5 h-5 text-purple-500" />
-              توزيع تصنيفات الحركة
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
-                    labelLine={false}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-[250px] text-gray-400 gap-2">
-                <Database className="w-12 h-12 opacity-50" />
-                <p>لا توجد بيانات</p>
-                <p className="text-sm">ارفع تقرير الحركة أو اضغط "مزامنة المخزون"</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* رسم شريطي */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 className="w-5 h-5 text-blue-500" />
-              عدد البنود حسب التصنيف
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {barData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={barData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tickFormatter={(v) => v.toLocaleString('ar-SA')} />
-                  <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => (v ?? 0).toLocaleString('ar-SA')} />
-                  <Bar dataKey="البنود" radius={[0, 4, 4, 0]}>
-                    {barData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[250px] text-gray-400">
-                لا توجد بيانات
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* البحث والفلتر */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="بحث برقم البند أو الوصف..."
-                className="pr-10"
-              />
+      {/* محتوى التبويبات */}
+      {activeTab === 'analysis' && (
+        <>
+          {/* العنوان */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Activity className="w-6 h-6 text-blue-500" />
+                تحليل حركة البنود
+              </h2>
+              <p className="text-gray-500">{systemName} • {total.toLocaleString('ar-SA')} بند</p>
             </div>
             
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-400" />
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="all">جميع التصنيفات</option>
-                <option value="سريع جداً">سريع جداً</option>
-                <option value="سريع">سريع</option>
-                <option value="متوسط">متوسط</option>
-                <option value="بطيء">بطيء</option>
-                <option value="عديم الحركة">عديم الحركة</option>
-              </select>
+            {/* رفع التقرير + تصدير */}
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${system === 'mwsal' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                  المستودع: {systemName}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="gap-2"
+                  title="مزامنة البنود من المخزون (إضافة البنود بدون صرف كعديمة الحركة)"
+                >
+                  {syncing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      جاري المزامنة...
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-4 h-4" />
+                      مزامنة المخزون
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportExcel}
+                  disabled={exporting || total === 0}
+                  className="gap-2"
+                >
+                  <Download className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} />
+                  {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleUpload}
+                  className="hidden"
+                  id="movement-upload"
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className={`gap-2 ${system === 'mwsal' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                >
+                  {uploading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      جاري التحليل...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      رفع تقرير الحركة
+                    </>
+                  )}
+                </Button>
+              </div>
+              {uploadProgress && (
+                <p className="text-xs text-blue-600">{uploadProgress}</p>
+              )}
             </div>
-
-            <Button variant="outline" size="sm" onClick={fetchData}>
-              <RefreshCw className="w-4 h-4" />
-            </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* جدول البنود */}
-      <Card>
-        <CardHeader>
-          <CardTitle>قائمة البنود</CardTitle>
-          <CardDescription>
-            عرض {items.length} من أصل {total.toLocaleString('ar-SA')} بند
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
-            </div>
-          ) : items.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>لا توجد بيانات</p>
-              <p className="text-sm mt-2">ارفع تقرير Full Dispatch من نظام BY أو اضغط "مزامنة المخزون"</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="text-right p-3 font-medium">رقم البند</th>
-                    <th className="text-right p-3 font-medium">الوصف</th>
-                    <th className="text-center p-3 font-medium">التصنيف</th>
-                    <th className="text-center p-3 font-medium">الكمية المصروفة</th>
-                    <th className="text-center p-3 font-medium">المعاملات</th>
-                    <th className="text-center p-3 font-medium">المتوسط</th>
-                    <th className="text-center p-3 font-medium">الفترة</th>
-                    <th className="text-center p-3 font-medium">آخر صرف</th>
-                    <th className="text-center p-3 font-medium">منذ كم يوم</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
-                      <td className="p-3 font-mono text-xs">{item.genericItemNumber}</td>
-                      <td className="p-3 max-w-[200px] truncate" title={item.description || ''}>
-                        {item.description || '-'}
-                      </td>
-                      <td className="p-3 text-center">
-                        <Badge 
-                          style={{ 
-                            backgroundColor: MOVEMENT_COLORS[item.movementClass as keyof typeof MOVEMENT_COLORS] || '#999',
-                            color: 'white'
-                          }}
-                          className="gap-1"
-                        >
-                          {getMovementIcon(item.movementClass)}
-                          {item.movementClass}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-center font-medium">
-                        {item.totalQtyDispatched.toLocaleString('ar-SA')}
-                      </td>
-                      <td className="p-3 text-center">
-                        {item.transactionCount.toLocaleString('ar-SA')}
-                      </td>
-                      <td className="p-3 text-center text-gray-600">
-                        {item.avgQtyPerTransaction.toFixed(0)}
-                      </td>
-                      <td className="p-3 text-center text-gray-600">
-                        {item.daysSpan} يوم
-                      </td>
-                      <td className="p-3 text-center text-gray-600 text-xs">
-                        {item.lastDispatchDate
-                          ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA')
-                          : '-'
-                        }
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                          item.daysSinceLastDispatch === null ? 'bg-gray-100 text-gray-500' :
-                          item.daysSinceLastDispatch >= 180 ? 'bg-red-100 text-red-700' :
-                          item.daysSinceLastDispatch >= 90 ? 'bg-orange-100 text-orange-700' :
-                          item.daysSinceLastDispatch >= 30 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {item.daysSinceLastDispatch !== null ? item.daysSinceLastDispatch + ' يوم' : '-'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* رسالة الرفع */}
+          {uploadMessage && (
+            <div className={`p-4 rounded-lg whitespace-pre-line ${uploadMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              {uploadMessage.text}
             </div>
           )}
 
-          {/* الصفحات */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 1}
-                onClick={() => setPage(p => p - 1)}
-              >
-                السابق
-              </Button>
-              <span className="text-sm text-gray-500">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === totalPages}
-                onClick={() => setPage(p => p + 1)}
-              >
-                التالي
-              </Button>
+          {/* تنبيه المستودع والمزامنة */}
+          <div className={`p-4 rounded-lg border ${system === 'mwsal' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+            <div className="space-y-2">
+              <p className="text-sm">
+                <strong>📌 ملاحظة:</strong> سيتم حفظ البيانات في <strong>{systemName}</strong> فقط.
+                {system === 'mwsal' ? ' (مستودع موصول E300)' : ' (مستودع هوز E200)'}
+              </p>
+              <p className="text-sm">
+                <strong>🔗 المزامنة:</strong> اضغط "مزامنة المخزون" لإضافة البنود الموجودة في المخزون والتي ليس لها سجلات صرف كـ <strong>"عديمة الحركة"</strong>.
+              </p>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+
+          {/* ملخص التصنيفات */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {classCounts.map(c => {
+              const color = MOVEMENT_COLORS[c.class as keyof typeof MOVEMENT_COLORS] || '#999'
+              const isSelected = selectedClass === c.class
+              return (
+                <Card 
+                  key={c.class}
+                  className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+                  onClick={() => setSelectedClass(isSelected ? 'all' : c.class)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                      {getMovementIcon(c.class)}
+                      <span className="text-sm font-medium">{c.class}</span>
+                    </div>
+                    <p className="text-2xl font-bold" style={{ color }}>
+                      {c.count.toLocaleString('ar-SA')}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {total > 0 ? ((c.count / total) * 100).toFixed(1) : 0}%
+                    </p>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* الرسوم البيانية */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* رسم دائري */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <PieChartIcon className="w-5 h-5 text-purple-500" />
+                  توزيع تصنيفات الحركة
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pieData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
+                        labelLine={false}
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[250px] text-gray-400 gap-2">
+                    <Database className="w-12 h-12 opacity-50" />
+                    <p>لا توجد بيانات</p>
+                    <p className="text-sm">ارفع تقرير الحركة أو اضغط "مزامنة المخزون"</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* رسم شريطي */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BarChart3 className="w-5 h-5 text-blue-500" />
+                  عدد البنود حسب التصنيف
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {barData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={barData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tickFormatter={(v) => v.toLocaleString('ar-SA')} />
+                      <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v) => (v ?? 0).toLocaleString('ar-SA')} />
+                      <Bar dataKey="البنود" radius={[0, 4, 4, 0]}>
+                        {barData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[250px] text-gray-400">
+                    لا توجد بيانات
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* البحث والفلتر */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="بحث برقم البند أو الوصف..."
+                    className="pr-10"
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-400" />
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="all">جميع التصنيفات</option>
+                    <option value="سريع جداً">سريع جداً</option>
+                    <option value="سريع">سريع</option>
+                    <option value="متوسط">متوسط</option>
+                    <option value="بطيء">بطيء</option>
+                    <option value="عديم الحركة">عديم الحركة</option>
+                  </select>
+                </div>
+
+                <Button variant="outline" size="sm" onClick={fetchData}>
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* جدول البنود */}
+          <Card>
+            <CardHeader>
+              <CardTitle>قائمة البنود</CardTitle>
+              <CardDescription>
+                عرض {items.length} من أصل {total.toLocaleString('ar-SA')} بند
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+              ) : items.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>لا توجد بيانات</p>
+                  <p className="text-sm mt-2">ارفع تقرير Full Dispatch من نظام BY أو اضغط "مزامنة المخزون"</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-gray-50">
+                        <th className="text-right p-3 font-medium">رقم البند</th>
+                        <th className="text-right p-3 font-medium">الوصف</th>
+                        <th className="text-center p-3 font-medium">التصنيف</th>
+                        <th className="text-center p-3 font-medium">الكمية المصروفة</th>
+                        <th className="text-center p-3 font-medium">المعاملات</th>
+                        <th className="text-center p-3 font-medium">المتوسط</th>
+                        <th className="text-center p-3 font-medium">الفترة</th>
+                        <th className="text-center p-3 font-medium">آخر صرف</th>
+                        <th className="text-center p-3 font-medium">منذ كم يوم</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item) => (
+                        <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
+                          <td className="p-3 font-mono text-xs">{item.genericItemNumber}</td>
+                          <td className="p-3 max-w-[200px] truncate" title={item.description || ''}>
+                            {item.description || '-'}
+                          </td>
+                          <td className="p-3 text-center">
+                            <Badge 
+                              style={{ 
+                                backgroundColor: MOVEMENT_COLORS[item.movementClass as keyof typeof MOVEMENT_COLORS] || '#999',
+                                color: 'white'
+                              }}
+                              className="gap-1"
+                            >
+                              {getMovementIcon(item.movementClass)}
+                              {item.movementClass}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-center font-medium">
+                            {item.totalQtyDispatched.toLocaleString('ar-SA')}
+                          </td>
+                          <td className="p-3 text-center">
+                            {item.transactionCount.toLocaleString('ar-SA')}
+                          </td>
+                          <td className="p-3 text-center text-gray-600">
+                            {item.avgQtyPerTransaction.toFixed(0)}
+                          </td>
+                          <td className="p-3 text-center text-gray-600">
+                            {item.daysSpan} يوم
+                          </td>
+                          <td className="p-3 text-center text-gray-600 text-xs">
+                            {item.lastDispatchDate
+                              ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA')
+                              : '-'
+                            }
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                              item.daysSinceLastDispatch === null ? 'bg-gray-100 text-gray-500' :
+                              item.daysSinceLastDispatch >= 180 ? 'bg-red-100 text-red-700' :
+                              item.daysSinceLastDispatch >= 90 ? 'bg-orange-100 text-orange-700' :
+                              item.daysSinceLastDispatch >= 30 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              {item.daysSinceLastDispatch !== null ? item.daysSinceLastDispatch + ' يوم' : '-'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* الصفحات */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page === 1}
+                    onClick={() => setPage(p => p - 1)}
+                  >
+                    السابق
+                  </Button>
+                  <span className="text-sm text-gray-500">
+                    {page} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page === totalPages}
+                    onClick={() => setPage(p => p + 1)}
+                  >
+                    التالي
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* تبويب اقتراحات التغذية */}
+      {activeTab === 'topup' && (
+        <TopUpSuggestions system={system} />
+      )}
+
+      {/* تبويب الإعدادات */}
+      {activeTab === 'settings' && (
+        <MovementSettings system={system} />
+      )}
     </div>
   )
 }
