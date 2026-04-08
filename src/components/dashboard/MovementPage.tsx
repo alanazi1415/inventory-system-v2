@@ -184,10 +184,16 @@ export function MovementPage({ system }: MovementPageProps) {
 
       if (data.success) {
         const stats = data.stats
-        let msg = `✅ تمت المزامنة بنجاح\n`
-        msg += `📦 إجمالي البنود في المخزون: ${stats.total}\n`
-        msg += `❄️ بنود عديمة الحركة (بدون صرف): ${stats.withoutMovement}\n`
-        msg += `➕ تمت الإضافة: ${stats.added}`
+        let msg = `✅ تمت المزامنة بنجاح\n\n`
+        msg += `📊 الإحصائيات:\n`
+        msg += `• إجمالي البنود في المخزون: ${stats.total}\n`
+        msg += `• البنود الموجودة في تحليل الحركة: ${stats.alreadyInMovement || 0}\n`
+        msg += `• البنود بدون أرقام صالحة: ${stats.withNullNumbers || 0}\n`
+        msg += `• بنود عديمة الحركة للإضافة: ${stats.withoutMovement}\n`
+        msg += `• تمت الإضافة فعلياً: ${stats.added}\n`
+        if (stats.errors > 0) {
+          msg += `• أخطاء (بنود مكررة): ${stats.errors}\n`
+        }
         setUploadMessage({ type: 'success', text: msg })
         fetchData()
       } else {

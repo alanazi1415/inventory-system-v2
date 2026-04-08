@@ -100,6 +100,8 @@ async function syncInventoryToMovement(system: string) {
     }
   })
   
+  console.log(`Found ${inventoryItems.length} items in inventory for system ${system}`)
+  
   // جلب جميع أرقام البنود الموجودة في تحليل الحركة
   const existingMovements = await db.itemMovement.findMany({
     where: { system },
@@ -107,8 +109,14 @@ async function syncInventoryToMovement(system: string) {
   })
   const existingNumbers = new Set(existingMovements.map(m => m.genericItemNumber))
   
+  console.log(`Found ${existingMovements.length} items in movement analysis for system ${system}`)
+  
   // البنود التي ليس لها حركة
   const itemsWithoutMovement: { itemNumber: string; description: string | null }[] = []
+  
+  // إحصائيات للتصحيح
+  let itemsWithNullNumbers = 0
+  let itemsAlreadyInMovement = 0
   
   for (const item of inventoryItems) {
     // التحقق من جميع أرقام البند المحتملة
@@ -116,24 +124,35 @@ async function syncInventoryToMovement(system: string) {
       item.genericItemNumber,
       item.customerItemNumber,
       item.tradeItemNumber
-    ].filter(Boolean) as string[]
+    ].filter((n): n is string => Boolean(n && n.trim()))
+    
+    if (numbers.length === 0) {
+      itemsWithNullNumbers++
+      continue
+    }
     
     // إذا لم يكن أي من الأرقام موجوداً في تحليل الحركة
     const hasMovement = numbers.some(n => existingNumbers.has(n))
     
-    if (!hasMovement && numbers.length > 0) {
-      // استخدام الرقم الأول المتاح
-      itemsWithoutMovement.push({
-        itemNumber: numbers[0],
-        description: item.genericItemDescription
-      })
+    if (hasMovement) {
+      itemsAlreadyInMovement++
+      continue
     }
+    
+    // استخدام الرقم الأول المتاح
+    itemsWithoutMovement.push({
+      itemNumber: numbers[0],
+      description: item.genericItemDescription
+    })
   }
   
-  console.log(`Found ${itemsWithoutMovement.length} items without movement`)
+  console.log(`Items without valid numbers: ${itemsWithNullNumbers}`)
+  console.log(`Items already in movement: ${itemsAlreadyInMovement}`)
+  console.log(`Items without movement to add: ${itemsWithoutMovement.length}`)
   
   // إضافة البنود بدون حركة كـ "عديم الحركة"
   let addedCount = 0
+  let errorCount = 0
   for (const item of itemsWithoutMovement) {
     try {
       await db.itemMovement.create({
@@ -150,12 +169,22 @@ async function syncInventoryToMovement(system: string) {
         }
       })
       addedCount++
-    } catch (e) {
+    } catch (e: any) {
       // قد يكون موجوداً بالفعل (unique constraint)
+      errorCount++
     }
   }
   
-  return { total: inventoryItems.length, added: addedCount, withoutMovement: itemsWithoutMovement.length }
+  console.log(`Added ${addedCount} items, ${errorCount} errors`)
+  
+  return { 
+    total: inventoryItems.length, 
+    added: addedCount, 
+    withoutMovement: itemsWithoutMovement.length,
+    alreadyInMovement: itemsAlreadyInMovement,
+    withNullNumbers: itemsWithNullNumbers,
+    errors: errorCount
+  }
 }
 
 // رفع وتحليل تقرير الحركة (يستقبل JSON من المتصفح بدل ملف)
