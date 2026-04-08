@@ -74,6 +74,9 @@ export async function GET() {
         canViewMovement: true,
         canViewHoz: true,
         canViewMwsal: true,
+        canEditMovementSettings: true,
+        canViewTopUp: true,
+        canCalculateTopUp: true,
         createdAt: true,
         updatedAt: true
       },
@@ -136,7 +139,10 @@ export async function POST(request: NextRequest) {
         canViewReports: data.canViewReports ?? true,
         canViewMovement: data.canViewMovement ?? true,
         canViewHoz: data.canViewHoz ?? true,
-        canViewMwsal: data.canViewMwsal ?? true
+        canViewMwsal: data.canViewMwsal ?? true,
+        canEditMovementSettings: data.canEditMovementSettings ?? false,
+        canViewTopUp: data.canViewTopUp ?? true,
+        canCalculateTopUp: data.canCalculateTopUp ?? false
       }
     })
     
@@ -179,7 +185,10 @@ export async function PUT(request: NextRequest) {
       canViewReports: data.canViewReports,
       canViewMovement: data.canViewMovement,
       canViewHoz: data.canViewHoz,
-      canViewMwsal: data.canViewMwsal
+      canViewMwsal: data.canViewMwsal,
+      canEditMovementSettings: data.canEditMovementSettings,
+      canViewTopUp: data.canViewTopUp,
+      canCalculateTopUp: data.canCalculateTopUp
     }
     
     // تحديث كلمة المرور فقط إذا تم توفيرها

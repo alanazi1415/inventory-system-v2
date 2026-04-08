@@ -26,8 +26,8 @@ async function checkAdminAuth() {
   }
 }
 
-// التحقق من صلاحية المستخدم (للعرض فقط)
-async function checkMovementAccess(): Promise<boolean> {
+// التحقق من صلاحية المستخدم للعرض
+async function checkMovementViewAccess(): Promise<boolean> {
   try {
     const cookieStore = await cookies()
     
@@ -56,7 +56,42 @@ async function checkMovementAccess(): Promise<boolean> {
     
     return false
   } catch (error) {
-    console.error('Movement access check error:', error)
+    console.error('Movement view access check error:', error)
+    return false
+  }
+}
+
+// التحقق من صلاحية تعديل الإعدادات
+async function checkSettingsEditAccess(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies()
+    
+    // تحقق من صلاحية الأدمن
+    const adminSession = cookieStore.get('admin_session')
+    if (adminSession?.value) {
+      const session = await db.adminSession.findUnique({
+        where: { token: adminSession.value }
+      })
+      if (session && session.expiresAt > new Date()) {
+        return true // الأدمن له كل الصلاحيات
+      }
+    }
+    
+    // تحقق من صلاحية المستخدم
+    const userSession = cookieStore.get('user_session')
+    if (userSession?.value) {
+      const session = await db.userSession.findUnique({
+        where: { token: userSession.value },
+        include: { user: true }
+      })
+      if (session && session.expiresAt > new Date() && session.user.isActive) {
+        return !!session.user.canEditMovementSettings
+      }
+    }
+    
+    return false
+  } catch (error) {
+    console.error('Settings edit access check error:', error)
     return false
   }
 }
@@ -78,7 +113,7 @@ const DEFAULT_THRESHOLDS = {
 // جلب إعدادات الحدود (للعرض - أي مستخدم لديه صلاحية تحليل الحركة)
 export async function GET(request: NextRequest) {
   try {
-    const hasAccess = await checkMovementAccess()
+    const hasAccess = await checkMovementViewAccess()
     if (!hasAccess) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
@@ -121,9 +156,9 @@ export async function GET(request: NextRequest) {
 // حفظ إعدادات الحدود
 export async function POST(request: NextRequest) {
   try {
-    const isAdmin = await checkAdminAuth()
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'غير مصرح - يجب تسجيل الدخول كمدير' }, { status: 401 })
+    const hasEditAccess = await checkSettingsEditAccess()
+    if (!hasEditAccess) {
+      return NextResponse.json({ error: 'غير مصرح - يجب أن يكون لديك صلاحية تعديل الإعدادات' }, { status: 401 })
     }
 
     const body = await request.json()

@@ -145,6 +145,10 @@ model User {
   canViewMovement     Boolean @default(true)
   canViewHoz          Boolean @default(true)
   canViewMwsal        Boolean @default(true)
+  // صلاحيات تحليل الحركة
+  canEditMovementSettings  Boolean @default(false) // تعديل إعدادات التصنيف
+  canViewTopUp             Boolean @default(true)  // عرض اقتراحات التغذية
+  canCalculateTopUp        Boolean @default(false) // حساب اقتراحات التغذية
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   sessions          UserSession[]

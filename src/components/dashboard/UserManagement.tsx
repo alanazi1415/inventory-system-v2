@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { 
   Users, UserPlus, Edit2, Trash2, Save, X, Check, Package, AlertTriangle, Clock, 
-  Heart, Syringe, Shield, Cigarette, Droplets, Building2, FileText, Database, Activity
+  Heart, Syringe, Shield, Cigarette, Droplets, Building2, FileText, Database, Activity,
+  Settings, TrendingUp, Calculator
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -29,6 +30,13 @@ const PERMISSIONS: Permission[] = [
   { key: 'canViewCentral', label: 'البنود المركزية', icon: Building2 },
   { key: 'canViewReports', label: 'التقارير', icon: FileText },
   { key: 'canViewMovement', label: 'تحليل الحركة', icon: Activity },
+]
+
+// صلاحيات تحليل الحركة المتقدمة
+const MOVEMENT_PERMISSIONS: Permission[] = [
+  { key: 'canEditMovementSettings', label: 'تعديل الإعدادات', icon: Settings },
+  { key: 'canViewTopUp', label: 'عرض اقتراحات التغذية', icon: TrendingUp },
+  { key: 'canCalculateTopUp', label: 'حساب الاقتراحات', icon: Calculator },
 ]
 
 const SYSTEM_PERMISSIONS: Permission[] = [
@@ -55,6 +63,9 @@ interface User {
   canViewMovement: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
+  canEditMovementSettings: boolean
+  canViewTopUp: boolean
+  canCalculateTopUp: boolean
   createdAt: string
 }
 
@@ -83,6 +94,9 @@ export function UserManagement() {
     canViewMovement: true,
     canViewHoz: true,
     canViewMwsal: true,
+    canEditMovementSettings: false,
+    canViewTopUp: true,
+    canCalculateTopUp: false,
   })
 
   useEffect(() => {
@@ -122,6 +136,9 @@ export function UserManagement() {
       canViewMovement: true,
       canViewHoz: true,
       canViewMwsal: true,
+      canEditMovementSettings: false,
+      canViewTopUp: true,
+      canCalculateTopUp: false,
     })
     setEditingUser(null)
     setShowForm(false)
@@ -148,6 +165,9 @@ export function UserManagement() {
       canViewMovement: user.canViewMovement,
       canViewHoz: user.canViewHoz,
       canViewMwsal: user.canViewMwsal,
+      canEditMovementSettings: user.canEditMovementSettings,
+      canViewTopUp: user.canViewTopUp,
+      canCalculateTopUp: user.canCalculateTopUp,
     })
     setShowForm(true)
   }
@@ -225,11 +245,14 @@ export function UserManagement() {
       canViewMovement: value,
       canViewHoz: value,
       canViewMwsal: value,
+      canEditMovementSettings: value,
+      canViewTopUp: value,
+      canCalculateTopUp: value,
     }))
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -344,7 +367,7 @@ export function UserManagement() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
                 {PERMISSIONS.map((perm) => {
                   const Icon = perm.icon
                   const isActive = formData[perm.key as keyof typeof formData] as boolean
@@ -366,6 +389,40 @@ export function UserManagement() {
                 })}
               </div>
             </div>
+
+            {/* Movement Analysis Advanced Permissions */}
+            {formData.canViewMovement && (
+              <div className="space-y-2 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-blue-600" />
+                  <label className="text-sm font-medium text-blue-700">صلاحيات تحليل الحركة المتقدمة:</label>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {MOVEMENT_PERMISSIONS.map((perm) => {
+                    const Icon = perm.icon
+                    const isActive = formData[perm.key as keyof typeof formData] as boolean
+                    return (
+                      <button
+                        key={perm.key}
+                        onClick={() => togglePermission(perm.key)}
+                        className={`flex items-center gap-2 p-2 rounded-lg border-2 transition-colors ${
+                          isActive 
+                            ? 'border-blue-500 bg-blue-100 text-blue-700' 
+                            : 'border-gray-200 bg-white text-gray-500'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-sm">{perm.label}</span>
+                        {isActive ? <Check className="w-4 h-4 mr-auto" /> : <X className="w-4 h-4 mr-auto" />}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-blue-600 mt-2">
+                  💡 هذه الصلاحيات تظهر فقط عند تفعيل "تحليل الحركة"
+                </p>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2 pt-4">
@@ -419,6 +476,11 @@ export function UserManagement() {
                             {p.label}
                           </Badge>
                         ))}
+                        {user.canViewMovement && (user.canEditMovementSettings || user.canCalculateTopUp) && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            صلاحيات متقدمة
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
