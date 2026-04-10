@@ -1,10 +1,38 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
+// التحقق من صلاحية الأدمن
+async function checkAdminAuth() {
+  try {
+    const cookieStore = await cookies()
+    const session = cookieStore.get('admin_session')
+    
+    if (session?.value) {
+      const adminSession = await db.adminSession.findUnique({
+        where: { token: session.value }
+      })
+      return !!(adminSession && adminSession.expiresAt > new Date())
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 export async function GET() {
   try {
+    // التحقق من صلاحية الأدمن
+    const isAdmin = await checkAdminAuth()
+    if (!isAdmin) {
+      return NextResponse.json({
+        status: 'error',
+        message: 'غير مصرح - يجب تسجيل الدخول كأدمن أولاً'
+      }, { status: 401 })
+    }
+
     // إعادة تعيين جميع التصنيفات إلى false
     await db.inventoryItem.updateMany({
       data: {
@@ -29,7 +57,7 @@ export async function GET() {
 
     return NextResponse.json({
       status: 'success',
-      message: 'تم إعادة تعيين جميع التصنيفات. الآن يمكنك إعادة رفع ملفات التصنيفات بالترتيب.'
+      message: 'تم إعادة تعيين جميع التصنيفات. الآن يمكنك إعادة رفع ملفات التصنيفات.'
     })
   } catch (error: any) {
     return NextResponse.json({
