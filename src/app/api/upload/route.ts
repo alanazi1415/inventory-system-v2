@@ -178,9 +178,15 @@ async function checkAuth() {
 async function processSpecialItems(
   system: string,
   data: any[],
-  model: any,
+  model: string,
   fieldName: string
 ) {
+  // 1. إعادة تعيين جميع البنود لهذا التصنيف إلى false
+  await db.inventoryItem.updateMany({
+    data: { [fieldName]: false }
+  })
+  
+  // 2. حذف الجدول القديم
   await (db as any)[model].deleteMany()
   
   const insertedItems = new Set<string>()
@@ -201,6 +207,7 @@ async function processSpecialItems(
     }
   }
 
+  // 3. تحديث البنود الموجودة فقط
   const allNumbers = Array.from(insertedItems)
   if (allNumbers.length > 0) {
     await db.inventoryItem.updateMany({
@@ -320,7 +327,14 @@ export async function POST(request: NextRequest) {
       recordsCount = await processSpecialItems(system, data as any[], 'strategicItem', 'isStrategic')
     } else if (system === 'smoking') {
       // بنود التدخين
+      // 1. إعادة تعيين جميع البنود إلى غير تدخين
+      await db.inventoryItem.updateMany({
+        data: { isSmoking: false }
+      })
+      
+      // 2. حذف الجدول القديم
       await db.$executeRaw`DELETE FROM "SmokingItem"`
+      
       const rows = data as any[]
       const insertedItems = new Set<string>()
       
@@ -339,6 +353,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // 3. تحديث البنود الموجودة فقط
       const allNumbers = Array.from(insertedItems)
       if (allNumbers.length > 0) {
         await db.inventoryItem.updateMany({
@@ -354,7 +369,14 @@ export async function POST(request: NextRequest) {
       }
     } else if (system === 'kidney') {
       // بنود الكلى
+      // 1. إعادة تعيين جميع البنود إلى غير كلى
+      await db.inventoryItem.updateMany({
+        data: { isKidney: false }
+      })
+      
+      // 2. حذف الجدول القديم
       await db.$executeRaw`DELETE FROM "KidneyItem"`
+      
       const rows = data as any[]
       const insertedItems = new Set<string>()
       
@@ -373,6 +395,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // 3. تحديث البنود الموجودة فقط
       const allNumbers = Array.from(insertedItems)
       if (allNumbers.length > 0) {
         await db.inventoryItem.updateMany({
@@ -388,7 +411,14 @@ export async function POST(request: NextRequest) {
       }
     } else if (system === 'central') {
       // البنود المركزية
+      // 1. إعادة تعيين جميع البنود إلى غير مركزية
+      await db.inventoryItem.updateMany({
+        data: { isCentral: false }
+      })
+      
+      // 2. حذف الجدول القديم
       await db.$executeRaw`DELETE FROM "CentralItem"`
+      
       const rows = data as any[]
       const insertedItems = new Set<string>()
       
@@ -407,6 +437,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // 3. تحديث البنود الموجودة فقط
       const allNumbers = Array.from(insertedItems)
       if (allNumbers.length > 0) {
         await db.inventoryItem.updateMany({
