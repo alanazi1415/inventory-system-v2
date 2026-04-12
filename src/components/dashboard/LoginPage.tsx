@@ -25,7 +25,7 @@ export function LoginPage({ onLogin, onAdminLogin }: LoginPageProps) {
         body: JSON.stringify({ password })
       })
       const data = await res.json()
-      if (data.success) {
+      if (data.authenticated) {
         onLogin(data.user)
       } else {
         setError(data.error || 'كلمة المرور غير صحيحة')
