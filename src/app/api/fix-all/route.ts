@@ -9,11 +9,9 @@ export async function GET() {
     await db.$executeRawUnsafe(`
       UPDATE "User"
       SET "canEditMovementSettings" = COALESCE("canEditMovementSettings", false),
-          "canViewTopUp" = COALESCE("canViewTopUp", true),
-          "canCalculateTopUp" = COALESCE("canCalculateTopUp", false)
+          "canClassifyMovement" = COALESCE("canClassifyMovement", false)
       WHERE "canEditMovementSettings" IS NULL
-         OR "canViewTopUp" IS NULL
-         OR "canCalculateTopUp" IS NULL
+         OR "canClassifyMovement" IS NULL
     `)
 
     // 2. حذف جميع الجلسات القديمة
@@ -28,8 +26,7 @@ export async function GET() {
         password: true,
         isActive: true,
         canEditMovementSettings: true,
-        canViewTopUp: true,
-        canCalculateTopUp: true
+        canClassifyMovement: true
       }
     })
 

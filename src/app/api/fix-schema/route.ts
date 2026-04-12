@@ -9,8 +9,7 @@ export async function GET() {
     await db.$executeRawUnsafe(`
       ALTER TABLE "User" 
       ADD COLUMN IF NOT EXISTS "canEditMovementSettings" BOOLEAN NOT NULL DEFAULT false,
-      ADD COLUMN IF NOT EXISTS "canViewTopUp" BOOLEAN NOT NULL DEFAULT true,
-      ADD COLUMN IF NOT EXISTS "canCalculateTopUp" BOOLEAN NOT NULL DEFAULT false
+      ADD COLUMN IF NOT EXISTS "canClassifyMovement" BOOLEAN NOT NULL DEFAULT false
     `)
     
     // التحقق من الأعمدة بعد الإضافة

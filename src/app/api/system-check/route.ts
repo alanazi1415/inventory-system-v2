@@ -23,12 +23,12 @@ export async function GET() {
       results.movementThresholds = { exists: false, error: e.message }
     }
 
-    // 3. التحقق من جدول اقتراحات التغذية
+    // 3. التحقق من جدول سجل التصنيف
     try {
-      const topUpCount = await db.topUpSuggestion.count()
-      results.topUpSuggestion = { exists: true, count: topUpCount }
+      const classificationLogCount = await db.classificationLog.count()
+      results.classificationLog = { exists: true, count: classificationLogCount }
     } catch (e: any) {
-      results.topUpSuggestion = { exists: false, error: e.message }
+      results.classificationLog = { exists: false, error: e.message }
     }
 
     // 4. التحقق من المستخدم nupco وصلاحياته
@@ -41,8 +41,7 @@ export async function GET() {
           name: true,
           canViewMovement: true,
           canEditMovementSettings: true,
-          canViewTopUp: true,
-          canCalculateTopUp: true
+          canClassifyMovement: true
         }
       })
       results.nupcoUser = nupcoUser || 'not found'

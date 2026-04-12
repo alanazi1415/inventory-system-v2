@@ -32,16 +32,17 @@ export async function POST(request: NextRequest) {
       const cookieStore = await cookies()
       cookieStore.set('user_session', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: true,
         sameSite: 'lax',
         expires: expiresAt
       })
       
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        authenticated: true,
         user: {
           id: user.id,
           name: user.name,
+          username: user.username,
           permissions: {
             canViewInventory: user.canViewInventory,
             canViewAlerts: user.canViewAlerts,
@@ -58,8 +59,7 @@ export async function POST(request: NextRequest) {
             canViewHoz: user.canViewHoz,
             canViewMwsal: user.canViewMwsal,
             canEditMovementSettings: user.canEditMovementSettings,
-            canViewTopUp: user.canViewTopUp,
-            canCalculateTopUp: user.canCalculateTopUp
+            canClassifyMovement: user.canClassifyMovement
           }
         }
       })
@@ -85,11 +85,12 @@ export async function GET() {
       })
       
       if (userSession && userSession.expiresAt > new Date() && userSession.user.isActive) {
-        return NextResponse.json({ 
+        return NextResponse.json({
           authenticated: true,
           user: {
             id: userSession.user.id,
             name: userSession.user.name,
+            username: userSession.user.username,
             permissions: {
               canViewInventory: userSession.user.canViewInventory,
               canViewAlerts: userSession.user.canViewAlerts,
@@ -106,8 +107,7 @@ export async function GET() {
               canViewHoz: userSession.user.canViewHoz,
               canViewMwsal: userSession.user.canViewMwsal,
               canEditMovementSettings: userSession.user.canEditMovementSettings,
-              canViewTopUp: userSession.user.canViewTopUp,
-              canCalculateTopUp: userSession.user.canCalculateTopUp
+              canClassifyMovement: userSession.user.canClassifyMovement
             }
           }
         })
