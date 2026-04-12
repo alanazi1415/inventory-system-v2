@@ -87,9 +87,11 @@ function analyzeColumns(headers: string[]) {
   const batchKeywords = ['batch', 'lot', 'تشغيلة', 'رقم التشغيلة']
   const expiryKeywords = ['best before', 'expiry', 'انتهاء', 'تاريخ الانتهاء']
   const orderKeywords = ['sales order', 'order number', 'رقم الطلب', 'أمر البيع']
-  const preferredDateKeywords = ['confirm date', 'تاريخ الصرف', 'تاريخ التأكيد']
+  // Confirm Date هو المفضل للحسابات (العمود Q)
+  const preferredDateKeywords = ['confirm date', 'تاريخ التأكيد']
+  const secondaryDateKeywords = ['date of creation', 'creation date', 'تاريخ الإنشاء', 'تاريخ الصرف']
   const excludeDateKeywords = ['best before', 'expiry', 'expiration', 'انتهاء', 'production']
-  const genericDateKeywords = ['date', 'creation', 'تاريخ']
+  const genericDateKeywords = ['date', 'تاريخ']
 
   headers.forEach((header, index) => {
     const h = String(header).toLowerCase().trim()
@@ -101,15 +103,26 @@ function analyzeColumns(headers: string[]) {
     if (result.orderCol === -1 && orderKeywords.some(k => h.includes(k))) result.orderCol = index
   })
 
-  // البحث عن عامود التاريخ المفضل
+  // البحث عن عامود Confirm Date أولاً (المفضل للحسابات)
   headers.forEach((header, index) => {
-    if (result.dateCol !== -1) return
     const h = String(header).toLowerCase().trim()
     if (preferredDateKeywords.some(k => h === k || h.includes(k))) {
       result.dateCol = index
       return
     }
   })
+
+  // إذا لم يوجد Confirm Date، ابحث عن Date Of Creation
+  if (result.dateCol === -1) {
+    headers.forEach((header, index) => {
+      if (result.dateCol !== -1) return
+      const h = String(header).toLowerCase().trim()
+      if (secondaryDateKeywords.some(k => h === k || h.includes(k))) {
+        result.dateCol = index
+        return
+      }
+    })
+  }
 
   // البحث عن عامود تاريخ عام
   if (result.dateCol === -1) {
@@ -144,6 +157,7 @@ export function MovementPage({ system }: MovementPageProps) {
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [selectedPeriod, setSelectedPeriod] = useState(90)
+  const [useSmartFilter, setUseSmartFilter] = useState(true) // فلترة ذكية للتاريخ
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -372,6 +386,20 @@ export function MovementPage({ system }: MovementPageProps) {
       let dateFrom: string | null = null
       let dateTo: string | null = null
       const totalRows = rawData.length - 1
+      
+      // حساب تاريخ البداية للفلترة الذكية (التاريخ فقط بدون وقت)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // تصفير الوقت للمقارنة الدقيقة
+      const cutoffDate = useSmartFilter && selectedPeriod > 0 
+        ? new Date(today.getTime() - (selectedPeriod * 24 * 60 * 60 * 1000))
+        : null
+      
+      if (cutoffDate) {
+        cutoffDate.setHours(0, 0, 0, 0) // تصفير الوقت للمقارنة الدقيقة
+      }
+      
+      let filteredRows = 0
+      let skippedRows = 0
 
       for (let i = 1; i < rawData.length; i++) {
         const row = rawData[i]
@@ -387,22 +415,38 @@ export function MovementPage({ system }: MovementPageProps) {
         const expiry = colMap.expiryCol !== -1 ? String(row[colMap.expiryCol] || '') : ''
         const order = colMap.orderCol !== -1 ? String(row[colMap.orderCol] || '') : ''
 
-        // استخراج التاريخ
+        // استخراج التاريخ (التاريخ فقط بدون الوقت)
         let dateStr: string | null = null
+        let rowDate: Date | null = null
         if (colMap.dateCol !== -1 && row[colMap.dateCol]) {
           const dateValue = row[colMap.dateCol]
-          let date: Date | null = null
           if (typeof dateValue === 'number') {
-            date = new Date((dateValue - 25569) * 86400 * 1000)
+            // تاريخ Excel - تحويل إلى تاريخ فقط
+            rowDate = new Date((dateValue - 25569) * 86400 * 1000)
           } else {
-            date = new Date(dateValue)
+            // نص التاريخ مثل: 2026-02-12 07:48:25
+            // نأخذ التاريخ فقط (أول 10 أحرف)
+            const dateText = String(dateValue).trim()
+            const dateOnly = dateText.substring(0, 10) // YYYY-MM-DD
+            rowDate = new Date(dateOnly)
           }
-          if (!isNaN(date.getTime())) {
-            dateStr = date.toISOString()
+          if (!isNaN(rowDate.getTime())) {
+            // تصفير الوقت للمقارنة الدقيقة
+            rowDate.setHours(0, 0, 0, 0)
+            dateStr = rowDate.toISOString()
+            
+            // فلترة ذكية: تخطي المعاملات خارج الفترة المحددة
+            if (cutoffDate && rowDate < cutoffDate) {
+              skippedRows++
+              continue // تخطي هذا الصف
+            }
+            
             if (!dateFrom || dateStr < dateFrom) dateFrom = dateStr
             if (!dateTo || dateStr > dateTo) dateTo = dateStr
           }
         }
+        
+        filteredRows++
 
         const existing = movementMap.get(itemNumber) || {
           totalQty: 0,
@@ -432,8 +476,16 @@ export function MovementPage({ system }: MovementPageProps) {
         if (i % 5000 === 0) {
           const percent = 10 + Math.floor((i / totalRows) * 50)
           setUploadPercent(percent)
-          setUploadProgress(`جاري تحليل الصف ${i.toLocaleString('ar-SA')} من ${totalRows.toLocaleString('ar-SA')}... (${percent}%)`)
+          const filterInfo = cutoffDate 
+            ? ` (فترة التحليل: آخر ${selectedPeriod} يوم)` 
+            : ''
+          setUploadProgress(`جاري تحليل الصف ${i.toLocaleString('ar-SA')} من ${totalRows.toLocaleString('ar-SA')}...${filterInfo} (${percent}%)`)
         }
+      }
+      
+      // إظهار معلومات الفلترة
+      if (useSmartFilter && selectedPeriod > 0 && skippedRows > 0) {
+        console.log(`Smart filter: ${filteredRows} rows within period, ${skippedRows} rows skipped`)
       }
 
       setUploadProgress(`جاري إرسال البيانات (${movementMap.size.toLocaleString('ar-SA')} بند)...`)
@@ -514,7 +566,17 @@ export function MovementPage({ system }: MovementPageProps) {
       setUploadPercent(100)
       setUploadProgress('اكتمل!')
       
-      let successMsg = `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n`
+      let successMsg = `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${filteredRows.toLocaleString('ar-SA')} سجل - ${systemName}\n`
+      
+      // إضافة معلومات الفلترة الذكية
+      if (useSmartFilter && selectedPeriod > 0) {
+        const cutoffDateStr = cutoffDate!.toLocaleDateString('ar-SA')
+        successMsg += `📅 فترة التحليل: آخر ${selectedPeriod} يوم (من ${cutoffDateStr})\n`
+        if (skippedRows > 0) {
+          successMsg += `⏭️ تم استبعاد ${skippedRows.toLocaleString('ar-SA')} سجل خارج الفترة\n`
+        }
+      }
+      
       successMsg += `📦 تم حفظ ${totalSaved.toLocaleString('ar-SA')} بند\n`
       if (stockUpdated > 0) {
         successMsg += `📊 تم تحديث المخزون لـ ${stockUpdated.toLocaleString('ar-SA')} بند`
@@ -726,6 +788,7 @@ export function MovementPage({ system }: MovementPageProps) {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                   className={`gap-2 ${system === 'mwsal' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  title={useSmartFilter && selectedPeriod > 0 ? `سيتم تحليل المعاملات من آخر ${selectedPeriod} يوم فقط` : 'سيتم تحليل جميع المعاملات في الملف'}
                 >
                   {uploading ? (
                     <>
@@ -736,6 +799,9 @@ export function MovementPage({ system }: MovementPageProps) {
                     <>
                       <Upload className="w-4 h-4" />
                       رفع تقرير الحركة
+                      {useSmartFilter && selectedPeriod > 0 && (
+                        <span className="text-xs opacity-80">({selectedPeriod} يوم)</span>
+                      )}
                     </>
                   )}
                 </Button>
@@ -949,6 +1015,17 @@ export function MovementPage({ system }: MovementPageProps) {
                     ))}
                   </select>
                 </div>
+                
+                {/* فلترة ذكية للتاريخ */}
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useSmartFilter}
+                    onChange={(e) => setUseSmartFilter(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="text-gray-600">فلترة ذكية</span>
+                </label>
 
                 <Button variant="outline" size="sm" onClick={fetchData}>
                   <RefreshCw className="w-4 h-4" />
