@@ -285,11 +285,11 @@ export async function POST(request: NextRequest) {
       console.log(`Fast sync for system: ${system}`)
       
       try {
-        // إدراج جماعي للبنود الجديدة فقط
         const thresholds = await getThresholds(system)
         const { movementClass, score } = classifyMovement(0, 0, thresholds)
         
-        const result = await db.$executeRaw`
+        // إدراج جماعي بسيط وسريع
+        const result = await db.$executeRawUnsafe(`
           INSERT INTO "ItemMovement" (
             "id", "genericItemNumber", "description", "system",
             "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
@@ -297,36 +297,38 @@ export async function POST(request: NextRequest) {
             "analysisPeriodDays", "reportSource", "syncedFromInventory", "createdAt"
           )
           SELECT 
-            gen_random_uuid(),
-            i."genericItemNumber",
-            i."genericItemDescription",
-            ${system},
+            CONCAT('sync_', REPLACE(LOWER(RANDOM()::TEXT), '0.', '')),
+            sub.item_num,
+            sub.desc,
+            '${system}',
             0, 0, 0,
-            ${movementClass}, ${score},
-            COALESCE(i."totalQty", 0),
-            COALESCE(i."availableQty", 0),
-            ${thresholds.defaultAnalysisPeriod},
-            'مزامنة تلقائية',
-            true,
-            NOW()
-          FROM "InventoryItem" i
-          WHERE i."system" = ${system}
-            AND i."genericItemNumber" IS NOT NULL
-            AND NOT EXISTS (
-              SELECT 1 FROM "ItemMovement" m 
-              WHERE m."genericItemNumber" = i."genericItemNumber" 
-              AND m."system" = ${system}
-            )
-        `
+            '${movementClass}', ${score},
+            sub.t_qty, sub.a_qty,
+            ${thresholds.defaultAnalysisPeriod}, 'مزامنة تلقائية', true, NOW()
+          FROM (
+            SELECT DISTINCT ON ("genericItemNumber")
+              "genericItemNumber" as item_num,
+              "genericItemDescription" as desc,
+              SUM("totalQty") as t_qty,
+              SUM("availableQty") as a_qty
+            FROM "InventoryItem"
+            WHERE "system" = '${system}'
+              AND "genericItemNumber" IS NOT NULL
+            GROUP BY "genericItemNumber", "genericItemDescription"
+          ) sub
+          WHERE NOT EXISTS (
+            SELECT 1 FROM "ItemMovement" m 
+            WHERE m."genericItemNumber" = sub.item_num 
+            AND m."system" = '${system}'
+          )
+        `)
         
         console.log(`Synced ${result} new items`)
         
         return NextResponse.json({
           success: true,
           message: 'تمت المزامنة بنجاح',
-          stats: { 
-            added: result
-          }
+          stats: { added: result }
         })
       } catch (error: any) {
         console.error('Sync error:', error)
@@ -412,6 +414,15 @@ export async function POST(request: NextRequest) {
         const transactionCount = item.transactionCount || 0
         const { movementClass, score } = classifyMovement(transactionCount, totalQty, thresholds)
         
+        // حساب تاريخ أول وآخر صرف
+        let firstDispatchDate = 'NULL'
+        let lastDispatchDate = 'NULL'
+        if (item.dates && item.dates.length > 0) {
+          const sortedDates = [...item.dates].sort()
+          firstDispatchDate = `'${sortedDates[0]}'`
+          lastDispatchDate = `'${sortedDates[sortedDates.length - 1]}'`
+        }
+        
         const id = generateId()
         const genericItemNumber = (item.genericItemNumber || '').replace(/'/g, "''")
         const description = (item.description || '').replace(/'/g, "''").substring(0, 200)
@@ -420,7 +431,7 @@ export async function POST(request: NextRequest) {
           '${id}', '${genericItemNumber}', '${description}', '${system}',
           ${totalQty}, ${transactionCount}, ${transactionCount > 0 ? totalQty / transactionCount : 0},
           '${movementClass}', ${score}, ${item.batchCount || 0}, ${item.uniqueExpiryDates || 0}, ${item.uniqueOrders || 0},
-          ${periodDays}, '${fileName || 'unknown'}', NOW()
+          ${periodDays}, '${fileName || 'unknown'}', ${firstDispatchDate}, ${lastDispatchDate}, NOW()
         )`
       }).join(',')
       
@@ -430,7 +441,7 @@ export async function POST(request: NextRequest) {
             "id", "genericItemNumber", "description", "system",
             "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
             "autoMovementClass", "movementScore", "batchCount", "uniqueExpiryDates", "uniqueOrders",
-            "analysisPeriodDays", "reportSource", "createdAt"
+            "analysisPeriodDays", "reportSource", "firstDispatchDate", "lastDispatchDate", "createdAt"
           ) VALUES ${values}
         `)
         savedCount += batch.length
