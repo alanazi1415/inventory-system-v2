@@ -157,7 +157,6 @@ export function MovementPage({ system }: MovementPageProps) {
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [selectedPeriod, setSelectedPeriod] = useState(90)
-  const [useSmartFilter, setUseSmartFilter] = useState(true) // فلترة ذكية للتاريخ
   const [settingsLoaded, setSettingsLoaded] = useState(false) // هل تم تحميل الإعدادات
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -406,10 +405,10 @@ export function MovementPage({ system }: MovementPageProps) {
       let dateTo: string | null = null
       const totalRows = rawData.length - 1
       
-      // حساب تاريخ البداية للفلترة الذكية (التاريخ فقط بدون وقت)
+      // حساب تاريخ البداية للفلترة حسب الفترة المحددة في الإعدادات
       const today = new Date()
       today.setHours(0, 0, 0, 0) // تصفير الوقت للمقارنة الدقيقة
-      const cutoffDate = useSmartFilter && selectedPeriod > 0 
+      const cutoffDate = selectedPeriod > 0 
         ? new Date(today.getTime() - (selectedPeriod * 24 * 60 * 60 * 1000))
         : null
       
@@ -503,8 +502,8 @@ export function MovementPage({ system }: MovementPageProps) {
       }
       
       // إظهار معلومات الفلترة
-      if (useSmartFilter && selectedPeriod > 0 && skippedRows > 0) {
-        console.log(`Smart filter: ${filteredRows} rows within period, ${skippedRows} rows skipped`)
+      if (selectedPeriod > 0 && skippedRows > 0) {
+        console.log(`Period filter: ${filteredRows} rows within ${selectedPeriod} days, ${skippedRows} rows skipped`)
       }
 
       setUploadProgress(`جاري إرسال البيانات (${movementMap.size.toLocaleString('ar-SA')} بند)...`)
@@ -587,13 +586,15 @@ export function MovementPage({ system }: MovementPageProps) {
       
       let successMsg = `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${filteredRows.toLocaleString('ar-SA')} سجل - ${systemName}\n`
       
-      // إضافة معلومات الفلترة الذكية
-      if (useSmartFilter && selectedPeriod > 0) {
+      // إضافة معلومات الفلترة حسب الفترة
+      if (selectedPeriod > 0) {
         const cutoffDateStr = cutoffDate!.toLocaleDateString('ar-SA')
         successMsg += `📅 فترة التحليل: آخر ${selectedPeriod} يوم (من ${cutoffDateStr})\n`
         if (skippedRows > 0) {
           successMsg += `⏭️ تم استبعاد ${skippedRows.toLocaleString('ar-SA')} سجل خارج الفترة\n`
         }
+      } else {
+        successMsg += `📅 فترة التحليل: جميع الفترات\n`
       }
       
       successMsg += `📦 تم حفظ ${totalSaved.toLocaleString('ar-SA')} بند\n`
@@ -807,7 +808,7 @@ export function MovementPage({ system }: MovementPageProps) {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                   className={`gap-2 ${system === 'mwsal' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                  title={useSmartFilter && selectedPeriod > 0 ? `سيتم تحليل المعاملات من آخر ${selectedPeriod} يوم فقط` : 'سيتم تحليل جميع المعاملات في الملف'}
+                  title={selectedPeriod > 0 ? `سيتم تحليل المعاملات من آخر ${selectedPeriod} يوم فقط (حسب الإعدادات)` : 'سيتم تحليل جميع المعاملات في الملف'}
                 >
                   {uploading ? (
                     <>
@@ -818,7 +819,7 @@ export function MovementPage({ system }: MovementPageProps) {
                     <>
                       <Upload className="w-4 h-4" />
                       رفع تقرير الحركة
-                      {useSmartFilter && selectedPeriod > 0 && (
+                      {selectedPeriod > 0 && (
                         <span className="text-xs opacity-80">({selectedPeriod} يوم)</span>
                       )}
                     </>
@@ -1022,29 +1023,15 @@ export function MovementPage({ system }: MovementPageProps) {
                   </select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  <select
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(parseInt(e.target.value))}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  >
-                    {PERIOD_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg">
+                  <Calendar className="w-4 h-4 text-blue-500" />
+                  <span className="text-sm text-blue-700">
+                    فترة التحليل: <strong>{selectedPeriod === 0 ? 'الكل' : `${selectedPeriod} يوم`}</strong>
+                  </span>
+                  <a href="#" onClick={() => setActiveTab('settings')} className="text-xs text-blue-500 hover:underline mr-2">
+                    (تغيير)
+                  </a>
                 </div>
-                
-                {/* فلترة ذكية للتاريخ */}
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useSmartFilter}
-                    onChange={(e) => setUseSmartFilter(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300"
-                  />
-                  <span className="text-gray-600">فلترة ذكية</span>
-                </label>
 
                 <Button variant="outline" size="sm" onClick={fetchData}>
                   <RefreshCw className="w-4 h-4" />
