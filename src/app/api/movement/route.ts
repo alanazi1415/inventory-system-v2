@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
     }
     
     // رفع تقرير الحركة
-    const { items, system, fileName, totalRecords, dateFrom, dateTo, analysisPeriodDays } = body
+    const { items, system, fileName, totalRecords, dateFrom, dateTo, analysisPeriodDays, clearExisting } = body
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'لا توجد بيانات' }, { status: 400 })
@@ -245,9 +245,11 @@ export async function POST(request: NextRequest) {
     const thresholds = await getThresholds(system)
     const periodDays = analysisPeriodDays || thresholds.defaultAnalysisPeriod
     
-    // حذف البيانات القديمة لهذا النظام
-    console.log(`Deleting old data for system: ${system}`)
-    await db.$executeRawUnsafe(`DELETE FROM "ItemMovement" WHERE "system" = '${system}'`)
+    // حذف البيانات القديمة لهذا النظام فقط إذا كان clearExisting = true
+    if (clearExisting) {
+      console.log(`Deleting old data for system: ${system}`)
+      await db.$executeRawUnsafe(`DELETE FROM "ItemMovement" WHERE "system" = '${system}'`)
+    }
     
     // إدخال البيانات الجديدة
     let savedCount = 0
@@ -330,6 +332,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100')
     const offset = parseInt(searchParams.get('offset') || '0')
 
+    console.log(`GET movement data for system: ${system}, class: ${movementClass}, search: ${search}`)
+
     const where: any = { system }
 
     if (movementClass && movementClass !== 'all') {
@@ -361,6 +365,8 @@ export async function GET(request: NextRequest) {
         _count: { id: true }
       })
     ])
+
+    console.log(`Found ${items.length} items, total: ${total}, classCounts: ${classCounts.length}`)
 
     const now = new Date()
     const itemsWithDaysSince = items.map(item => {

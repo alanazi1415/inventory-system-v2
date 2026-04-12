@@ -169,14 +169,18 @@ export function MovementPage({ system }: MovementPageProps) {
       const res = await fetch(url)
       const data = await res.json()
       
-      if (data.items) {
+      if (res.ok && data.items) {
         setItems(data.items)
         setTotal(data.total)
         setClassCounts(data.classCounts || [])
         setStats(data.stats || { totalItems: 0, totalQtyDispatched: 0, totalTransactions: 0 })
+      } else if (data.error) {
+        console.error('API error:', data.error, data.details)
+        setUploadMessage({ type: 'error', text: `خطأ: ${data.error}\n${data.details || ''}` })
       }
     } catch (error) {
       console.error('Error fetching movement data:', error)
+      setUploadMessage({ type: 'error', text: 'حدث خطأ في جلب البيانات' })
     } finally {
       setLoading(false)
     }
@@ -432,7 +436,8 @@ export function MovementPage({ system }: MovementPageProps) {
             uniqueItems: movementMap.size,
             dateFrom,
             dateTo,
-            analysisPeriodDays: selectedPeriod
+            analysisPeriodDays: selectedPeriod,
+            clearExisting: batchIndex === 1 // حذف البيانات القديمة فقط في الدفعة الأولى
           })
         })
 
