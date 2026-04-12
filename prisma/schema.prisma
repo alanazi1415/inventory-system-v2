@@ -209,7 +209,7 @@ model ItemMovement {
   analysisDateTo     DateTime? // نهاية فترة التحليل
   
   // معلومات التحليل
-  lastAnalysisDate   DateTime @default(now()) // تاريخ آخر تحليل
+  lastAnalysisDate   DateTime? // تاريخ آخر تحليل (nullable)
   reportSource       String?  // مصدر التقرير
   
   // حالة التزامن مع المخزون
