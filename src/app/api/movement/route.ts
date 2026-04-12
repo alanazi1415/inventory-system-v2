@@ -282,53 +282,87 @@ export async function POST(request: NextRequest) {
     // طلب مزامنة المخزون (محسن للسرعة)
     if (body.syncInventory) {
       const system = body.system || 'mwsal'
-      console.log(`Fast sync for system: ${system}`)
+      console.log(`Syncing inventory for system: ${system}`)
       
       try {
         const thresholds = await getThresholds(system)
         const { movementClass, score } = classifyMovement(0, 0, thresholds)
         
-        // إدراج جماعي بسيط وسريع
-        const result = await db.$executeRawUnsafe(`
-          INSERT INTO "ItemMovement" (
-            "id", "genericItemNumber", "description", "system",
-            "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
-            "autoMovementClass", "movementScore", "currentStock", "availableStock",
-            "analysisPeriodDays", "reportSource", "syncedFromInventory", "createdAt"
-          )
+        // جلب البنود الفريدة من المخزون
+        const inventoryItems = await db.$queryRaw<{ 
+          itemNumber: string; 
+          description: string | null; 
+          totalQty: number; 
+          availableQty: number 
+        }[]>`
           SELECT 
-            CONCAT('sync_', REPLACE(LOWER(RANDOM()::TEXT), '0.', '')),
-            sub.item_num,
-            sub.desc,
-            '${system}',
-            0, 0, 0,
-            '${movementClass}', ${score},
-            sub.t_qty, sub.a_qty,
-            ${thresholds.defaultAnalysisPeriod}, 'مزامنة تلقائية', true, NOW()
-          FROM (
-            SELECT DISTINCT ON ("genericItemNumber")
-              "genericItemNumber" as item_num,
-              "genericItemDescription" as desc,
-              SUM("totalQty") as t_qty,
-              SUM("availableQty") as a_qty
-            FROM "InventoryItem"
-            WHERE "system" = '${system}'
-              AND "genericItemNumber" IS NOT NULL
-            GROUP BY "genericItemNumber", "genericItemDescription"
-          ) sub
-          WHERE NOT EXISTS (
-            SELECT 1 FROM "ItemMovement" m 
-            WHERE m."genericItemNumber" = sub.item_num 
-            AND m."system" = '${system}'
-          )
-        `)
+            "genericItemNumber" as "itemNumber",
+            MAX("genericItemDescription") as description,
+            SUM("totalQty") as "totalQty",
+            SUM("availableQty") as "availableQty"
+          FROM "InventoryItem"
+          WHERE "system" = ${system}
+            AND "genericItemNumber" IS NOT NULL
+            AND "genericItemNumber" != ''
+          GROUP BY "genericItemNumber"
+        `
         
-        console.log(`Synced ${result} new items`)
+        // جلب البنود الموجودة في تحليل الحركة
+        const existingItems = await db.itemMovement.findMany({
+          where: { system },
+          select: { genericItemNumber: true }
+        })
+        const existingSet = new Set(existingItems.map(i => i.genericItemNumber))
+        
+        // فلترة البنود الجديدة فقط
+        const newItems = inventoryItems.filter(item => !existingSet.has(item.itemNumber))
+        
+        if (newItems.length === 0) {
+          return NextResponse.json({
+            success: true,
+            message: 'تمت المزامنة بنجاح - جميع البنود موجودة',
+            stats: { added: 0, total: inventoryItems.length, existing: existingSet.size }
+          })
+        }
+        
+        // إدراج البنود الجديدة
+        let addedCount = 0
+        for (const item of newItems) {
+          try {
+            await db.$executeRawUnsafe(`
+              INSERT INTO "ItemMovement" (
+                "id", "genericItemNumber", "description", "system",
+                "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
+                "autoMovementClass", "movementScore", "currentStock", "availableStock",
+                "analysisPeriodDays", "reportSource", "syncedFromInventory", "createdAt"
+              ) VALUES (
+                '${generateId()}',
+                '${item.itemNumber.replace(/'/g, "''")}',
+                ${item.description ? `'${item.description.replace(/'/g, "''")}'` : 'NULL'},
+                '${system}',
+                0, 0, 0,
+                '${movementClass}', ${score},
+                ${item.totalQty || 0}, ${item.availableQty || 0},
+                ${thresholds.defaultAnalysisPeriod}, 'مزامنة تلقائية', true, NOW()
+              )
+            `)
+            addedCount++
+          } catch {
+            // تجاهل الأخطاء الفردية
+          }
+        }
+        
+        console.log(`Synced ${addedCount} new items out of ${newItems.length}`)
         
         return NextResponse.json({
           success: true,
           message: 'تمت المزامنة بنجاح',
-          stats: { added: result }
+          stats: { 
+            added: addedCount,
+            total: inventoryItems.length,
+            existing: existingSet.size,
+            newFound: newItems.length
+          }
         })
       } catch (error: any) {
         console.error('Sync error:', error)
@@ -397,9 +431,14 @@ export async function POST(request: NextRequest) {
     const periodDays = analysisPeriodDays || thresholds.defaultAnalysisPeriod
     
     // حذف البيانات القديمة لهذا النظام فقط إذا كان clearExisting = true
+    // لكن نحافظ على البنود المزامنة عديمة الحركة
     if (clearExisting) {
-      console.log(`Deleting old data for system: ${system}`)
-      await db.$executeRawUnsafe(`DELETE FROM "ItemMovement" WHERE "system" = '${system}'`)
+      console.log(`Deleting old report data for system: ${system} (keeping synced items)`)
+      await db.$executeRawUnsafe(`
+        DELETE FROM "ItemMovement" 
+        WHERE "system" = '${system}' 
+          AND ("syncedFromInventory" = false OR "syncedFromInventory" IS NULL OR "transactionCount" > 0)
+      `)
     }
     
     // إدخال البيانات الجديدة

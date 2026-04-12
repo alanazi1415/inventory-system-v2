@@ -307,6 +307,15 @@ export function MovementPage({ system }: MovementPageProps) {
       msg += `📊 الملخص:\n`
       msg += `• بنود جديدة مضافة: ${addedItems.toLocaleString('ar-SA')}\n`
       msg += `• بنود تم تحديث كمياتها: ${updatedItems.toLocaleString('ar-SA')}\n`
+      
+      // إضافة معلومات إضافية إذا توفرت
+      if (syncData.stats?.total) {
+        msg += `• إجمالي البنود في المخزون: ${syncData.stats.total.toLocaleString('ar-SA')}\n`
+      }
+      if (syncData.stats?.existing) {
+        msg += `• بنود كانت موجودة مسبقاً: ${syncData.stats.existing.toLocaleString('ar-SA')}\n`
+      }
+      
       setUploadMessage({ type: 'success', text: msg })
       fetchData()
 

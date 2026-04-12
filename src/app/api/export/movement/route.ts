@@ -14,13 +14,13 @@ export async function GET(request: NextRequest) {
 
     // تصفية حسب التصنيف
     if (category === 'fast') {
-      where.movementClass = { in: ['سريع جداً', 'سريع'] }
+      where.autoMovementClass = { in: ['سريع جداً', 'سريع'] }
     } else if (category === 'slow') {
-      where.movementClass = 'بطيء'
+      where.autoMovementClass = 'بطيء'
     } else if (category === 'no-movement') {
-      where.movementClass = 'عديم الحركة'
+      where.autoMovementClass = 'عديم الحركة'
     } else if (category !== 'all') {
-      where.movementClass = category
+      where.autoMovementClass = category
     }
 
     // جلب جميع البنود بدون ترقيم صفحات
@@ -48,11 +48,14 @@ export async function GET(request: NextRequest) {
         '#': index + 1,
         'رقم البند': item.genericItemNumber || '',
         'الوصف': item.description || '',
-        'تصنيف الحركة': item.movementClass || '',
+        'تصنيف الحركة': item.autoMovementClass || '',
+        'التصنيف اليدوي': item.userMovementClass || '',
         'درجة الحركة': Math.round(item.movementScore || 0),
         'الكمية المصروفة': item.totalQtyDispatched || 0,
         'عدد المعاملات': item.transactionCount || 0,
         'متوسط الكمية لكل معاملة': Math.round(item.avgQtyPerTransaction || 0),
+        'الكمية الحالية': item.currentStock || 0,
+        'الكمية المتاحة': item.availableStock || 0,
         'تاريخ أول صرف': item.firstDispatchDate 
           ? new Date(item.firstDispatchDate).toLocaleDateString('ar-SA') 
           : '',
@@ -60,11 +63,9 @@ export async function GET(request: NextRequest) {
           ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA') 
           : '',
         'منذ كم يوم': daysSinceLastDispatch ?? '',
-        'الفترة (يوم)': item.daysSpan || 0,
-        'تاريخ آخر تحليل': item.lastAnalysisDate 
-          ? new Date(item.lastAnalysisDate).toLocaleDateString('ar-SA') 
-          : '',
+        'الفترة (يوم)': item.analysisPeriodDays || 0,
         'مصدر التقرير': item.reportSource || '',
+        'مزامنة من المخزون': item.syncedFromInventory ? 'نعم' : 'لا',
         'النظام': systemName,
       }
     })
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     // إنشاء ملخص في ورقة منفصلة
     const classGroups = items.reduce((acc: any, item: any) => {
-      const cls = item.movementClass || 'غير مصنف'
+      const cls = item.autoMovementClass || 'غير مصنف'
       if (!acc[cls]) acc[cls] = { count: 0, totalQty: 0, totalTx: 0 }
       acc[cls].count++
       acc[cls].totalQty += item.totalQtyDispatched || 0
