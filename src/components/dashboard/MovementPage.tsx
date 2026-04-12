@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
   TrendingUp, Upload, Search, Filter, 
   Package, Activity, BarChart3, PieChart as PieChartIcon, RefreshCw,
-  Flame, Zap, Clock, Snowflake, Download, Link2, Database, Settings,
+  Flame, Zap, Clock, Snowflake, Download, Database, Settings,
   Edit3, Save, X, Info, Calendar, Layers
 } from "lucide-react"
 import {
@@ -163,7 +163,8 @@ export function MovementPage({ system }: MovementPageProps) {
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [exporting, setExporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [updatingStock, setUpdatingStock] = useState(false)
+  const [syncProgress, setSyncProgress] = useState('')
+  const [syncPercent, setSyncPercent] = useState(0)
   const [editingItem, setEditingItem] = useState<string | null>(null)
   const [editClass, setEditClass] = useState<string>('')
   const [editNotes, setEditNotes] = useState<string>('')
@@ -239,13 +240,19 @@ export function MovementPage({ system }: MovementPageProps) {
     return () => clearTimeout(timer)
   }, [search])
 
-  // مزامنة البنود من المخزون
-  const handleSync = async () => {
+  // تحديث المخزون الكامل (مزامنة + تحديث الكميات)
+  const handleFullSync = async () => {
     setSyncing(true)
     setUploadMessage(null)
+    setSyncProgress('المرحلة 1/2: مزامنة البنود الجديدة...')
+    setSyncPercent(10)
+
+    let addedItems = 0
+    let updatedItems = 0
 
     try {
-      const res = await fetch('/api/movement', {
+      // المرحلة 1: مزامنة البنود الجديدة
+      const syncRes = await fetch('/api/movement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -255,42 +262,23 @@ export function MovementPage({ system }: MovementPageProps) {
         })
       })
 
-      // التحقق من أن الـ response هو JSON
-      const contentType = res.headers.get('content-type')
+      const contentType = syncRes.headers.get('content-type')
       if (!contentType || !contentType.includes('application/json')) {
-        const text = await res.text()
+        const text = await syncRes.text()
         throw new Error(`خطأ في الخادم: ${text.substring(0, 100)}...`)
       }
 
-      const data = await res.json()
-
-      if (data.success) {
-        const stats = data.stats
-        let msg = `✅ تمت المزامنة بنجاح\n\n`
-        msg += `📊 الإحصائيات:\n`
-        msg += `• البنود في المخزون: ${stats.uniqueNumbers || stats.totalInventoryItems}\n`
-        msg += `• بنود عديمة الحركة للإضافة: ${stats.withoutMovement}\n`
-        msg += `• تمت الإضافة: ${stats.added}\n`
-        msg += `• تم التحديث: ${stats.updated}\n`
-        setUploadMessage({ type: 'success', text: msg })
-        fetchData()
-      } else {
-        setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في المزامنة' })
+      const syncData = await syncRes.json()
+      
+      if (syncData.success) {
+        addedItems = syncData.stats?.added || 0
       }
-    } catch (error: any) {
-      setUploadMessage({ type: 'error', text: `حدث خطأ: ${error.message}` })
-    } finally {
-      setSyncing(false)
-    }
-  }
 
-  // تحديث المخزون من InventoryItem
-  const handleUpdateStock = async () => {
-    setUpdatingStock(true)
-    setUploadMessage(null)
+      setSyncProgress('المرحلة 2/2: تحديث الكميات...')
+      setSyncPercent(50)
 
-    try {
-      const res = await fetch('/api/movement', {
+      // المرحلة 2: تحديث الكميات
+      const updateRes = await fetch('/api/movement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -299,27 +287,35 @@ export function MovementPage({ system }: MovementPageProps) {
         })
       })
 
-      const contentType = res.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await res.text()
+      const updateContentType = updateRes.headers.get('content-type')
+      if (!updateContentType || !updateContentType.includes('application/json')) {
+        const text = await updateRes.text()
         throw new Error(`خطأ في الخادم: ${text.substring(0, 100)}...`)
       }
 
-      const data = await res.json()
+      const updateData = await updateRes.json()
 
-      if (data.success) {
-        setUploadMessage({ 
-          type: 'success', 
-          text: `✅ تم تحديث المخزون بنجاح\n📦 تم تحديث ${data.stats?.updatedItems || 0} بند` 
-        })
-        fetchData()
-      } else {
-        setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في تحديث المخزون' })
+      if (updateData.success) {
+        updatedItems = updateData.stats?.updatedItems || 0
       }
+
+      setSyncPercent(100)
+      setSyncProgress('تم!')
+
+      // رسالة النجاح النهائية
+      let msg = `✅ تم تحديث المخزون بنجاح\n\n`
+      msg += `📊 الملخص:\n`
+      msg += `• بنود جديدة مضافة: ${addedItems.toLocaleString('ar-SA')}\n`
+      msg += `• بنود تم تحديث كمياتها: ${updatedItems.toLocaleString('ar-SA')}\n`
+      setUploadMessage({ type: 'success', text: msg })
+      fetchData()
+
     } catch (error: any) {
       setUploadMessage({ type: 'error', text: `حدث خطأ: ${error.message}` })
     } finally {
-      setUpdatingStock(false)
+      setSyncing(false)
+      setSyncPercent(0)
+      setSyncProgress('')
     }
   }
 
@@ -752,32 +748,12 @@ export function MovementPage({ system }: MovementPageProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleSync}
+                  onClick={handleFullSync}
                   disabled={syncing}
                   className="gap-2"
-                  title="مزامنة البنود من المخزون"
+                  title="مزامنة البنود وتحديث الكميات من المخزون"
                 >
                   {syncing ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      جاري المزامنة...
-                    </>
-                  ) : (
-                    <>
-                      <Link2 className="w-4 h-4" />
-                      مزامنة المخزون
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleUpdateStock}
-                  disabled={updatingStock || total === 0}
-                  className="gap-2"
-                  title="تحديث كميات المخزون من المخزون اللحظي"
-                >
-                  {updatingStock ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       جاري التحديث...
@@ -785,7 +761,7 @@ export function MovementPage({ system }: MovementPageProps) {
                   ) : (
                     <>
                       <Database className="w-4 h-4" />
-                      تحديث الكميات
+                      تحديث المخزون
                     </>
                   )}
                 </Button>
@@ -830,7 +806,23 @@ export function MovementPage({ system }: MovementPageProps) {
                 </Button>
               </div>
               
-              {/* شريط التقدم */}
+              {/* شريط تقدم المزامنة */}
+              {syncing && (
+                <div className="w-full max-w-md">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-green-600">{syncProgress}</span>
+                    <span className="text-xs font-bold text-green-600">{syncPercent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-gradient-to-l from-green-500 to-green-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${syncPercent}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+              
+              {/* شريط تقدم الرفع */}
               {uploading && (
                 <div className="w-full max-w-md">
                   <div className="flex items-center justify-between mb-1">
