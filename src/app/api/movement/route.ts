@@ -75,7 +75,7 @@ async function updateAllMovementStock(system: string): Promise<number> {
     const stockMap = new Map<string, { totalQty: number; availableQty: number }>()
     
     for (const item of inventoryItems) {
-      const numbers = [item.genericItemNumber, item.tradeItemNumber, item.customerItemNumber].filter(Boolean)
+      const numbers: string[] = [item.genericItemNumber, item.tradeItemNumber, item.customerItemNumber].filter((n): n is string => Boolean(n))
       for (const num of numbers) {
         const existing = stockMap.get(num) || { totalQty: 0, availableQty: 0 }
         existing.totalQty += item.totalQty || 0
