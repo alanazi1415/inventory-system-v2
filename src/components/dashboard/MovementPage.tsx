@@ -207,14 +207,17 @@ export function MovementPage({ system }: MovementPageProps) {
     }
   }, [system, page, selectedClass, selectedPeriod, activeTab])
 
-  // تحميل الإعدادات المحفوظة عند فتح الصفحة
+  // تحميل الإعدادات المحفوظة عند فتح الصفحة أو الرجوع من الإعدادات
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const res = await fetch(`/api/movement/thresholds?system=${system}`)
         const data = await res.json()
-        if (data.success && data.thresholds && data.thresholds.defaultAnalysisPeriod) {
-          setSelectedPeriod(data.thresholds.defaultAnalysisPeriod)
+        if (data.success && data.thresholds) {
+          const newPeriod = data.thresholds.defaultAnalysisPeriod || 90
+          if (newPeriod !== selectedPeriod) {
+            setSelectedPeriod(newPeriod)
+          }
         }
       } catch (error) {
         console.error('Error loading settings:', error)
@@ -223,7 +226,7 @@ export function MovementPage({ system }: MovementPageProps) {
       }
     }
     loadSettings()
-  }, [system])
+  }, [system, activeTab]) // إضافة activeTab للتحديث عند الرجوع من الإعدادات
 
   useEffect(() => {
     const timer = setTimeout(() => {

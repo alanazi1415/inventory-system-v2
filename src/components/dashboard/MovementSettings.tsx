@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Settings, Save, RotateCcw, AlertTriangle, Lock } from "lucide-react"
+import { Settings, Save, RotateCcw, AlertTriangle, Lock, Info } from "lucide-react"
 
 interface ThresholdSettingsProps {
   system: 'hoz' | 'mwsal'
@@ -18,6 +18,10 @@ interface Thresholds {
   mediumMinQty: number
   slowMinTransactions: number
   defaultAnalysisPeriod: number
+  // إعدادات إضافية
+  useTransactionsOnly: boolean
+  useQtyOnly: boolean
+  preferConfirmDate: boolean
 }
 
 const DEFAULT_THRESHOLDS: Thresholds = {
@@ -28,8 +32,22 @@ const DEFAULT_THRESHOLDS: Thresholds = {
   mediumMinTransactions: 10,
   mediumMinQty: 500,
   slowMinTransactions: 3,
-  defaultAnalysisPeriod: 90
+  defaultAnalysisPeriod: 90,
+  useTransactionsOnly: false,
+  useQtyOnly: false,
+  preferConfirmDate: true
 }
+
+const PERIOD_OPTIONS = [
+  { value: 7, label: 'أسبوع واحد' },
+  { value: 14, label: 'أسبوعين' },
+  { value: 30, label: 'شهر واحد' },
+  { value: 60, label: 'شهرين' },
+  { value: 90, label: '3 أشهر' },
+  { value: 180, label: '6 أشهر' },
+  { value: 365, label: 'سنة كاملة' },
+  { value: 0, label: 'جميع الفترات' },
+]
 
 export function MovementSettings({ system }: ThresholdSettingsProps) {
   const [thresholds, setThresholds] = useState<Thresholds>(DEFAULT_THRESHOLDS)
@@ -77,14 +95,17 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
       
       if (data.success && data.thresholds) {
         setThresholds({
-          veryFastMinTransactions: data.thresholds.veryFastMinTransactions,
-          veryFastMinQty: data.thresholds.veryFastMinQty,
-          fastMinTransactions: data.thresholds.fastMinTransactions,
-          fastMinQty: data.thresholds.fastMinQty,
-          mediumMinTransactions: data.thresholds.mediumMinTransactions,
-          mediumMinQty: data.thresholds.mediumMinQty,
-          slowMinTransactions: data.thresholds.slowMinTransactions,
-          defaultAnalysisPeriod: data.thresholds.defaultAnalysisPeriod
+          veryFastMinTransactions: data.thresholds.veryFastMinTransactions || DEFAULT_THRESHOLDS.veryFastMinTransactions,
+          veryFastMinQty: data.thresholds.veryFastMinQty || DEFAULT_THRESHOLDS.veryFastMinQty,
+          fastMinTransactions: data.thresholds.fastMinTransactions || DEFAULT_THRESHOLDS.fastMinTransactions,
+          fastMinQty: data.thresholds.fastMinQty || DEFAULT_THRESHOLDS.fastMinQty,
+          mediumMinTransactions: data.thresholds.mediumMinTransactions || DEFAULT_THRESHOLDS.mediumMinTransactions,
+          mediumMinQty: data.thresholds.mediumMinQty || DEFAULT_THRESHOLDS.mediumMinQty,
+          slowMinTransactions: data.thresholds.slowMinTransactions || DEFAULT_THRESHOLDS.slowMinTransactions,
+          defaultAnalysisPeriod: data.thresholds.defaultAnalysisPeriod || DEFAULT_THRESHOLDS.defaultAnalysisPeriod,
+          useTransactionsOnly: data.thresholds.useTransactionsOnly ?? DEFAULT_THRESHOLDS.useTransactionsOnly,
+          useQtyOnly: data.thresholds.useQtyOnly ?? DEFAULT_THRESHOLDS.useQtyOnly,
+          preferConfirmDate: data.thresholds.preferConfirmDate ?? DEFAULT_THRESHOLDS.preferConfirmDate
         })
         setIsDefault(data.thresholds.isDefault)
       }
@@ -117,7 +138,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
       const data = await res.json()
       
       if (data.success) {
-        setMessage({ type: 'success', text: 'تم حفظ الإعدادات بنجاح' })
+        setMessage({ type: 'success', text: '✅ تم حفظ الإعدادات بنجاح' })
         setHasChanges(false)
         setIsDefault(false)
       } else {
@@ -156,7 +177,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
     }
   }
 
-  const updateThreshold = (key: keyof Thresholds, value: number) => {
+  const updateThreshold = (key: keyof Thresholds, value: number | boolean) => {
     setThresholds(prev => ({ ...prev, [key]: value }))
     setHasChanges(true)
   }
@@ -203,7 +224,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
               size="sm"
               onClick={handleSave}
               disabled={saving || !hasChanges}
-              className="gap-2"
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
             >
               <Save className="w-4 h-4" />
               {saving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
@@ -227,16 +248,54 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
           </div>
         )}
 
+        {/* فترة التحليل */}
+        <div className="space-y-4 p-4 bg-purple-50 rounded-lg">
+          <h4 className="font-semibold text-purple-700 flex items-center gap-2">
+            📅 فترة التحليل
+          </h4>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="col-span-2">
+              <label className="text-sm text-gray-600">اختر الفترة:</label>
+              <select
+                value={thresholds.defaultAnalysisPeriod}
+                onChange={(e) => updateThreshold('defaultAnalysisPeriod', parseInt(e.target.value))}
+                className="w-full border rounded-lg px-3 py-2 mt-1"
+                disabled={!canEdit}
+              >
+                {PERIOD_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="text-sm text-gray-600">أو أدخل عدد أيام مخصص:</label>
+              <Input
+                type="number"
+                value={thresholds.defaultAnalysisPeriod}
+                onChange={(e) => updateThreshold('defaultAnalysisPeriod', parseInt(e.target.value) || 90)}
+                className="mt-1"
+                disabled={!canEdit}
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-start gap-2 text-sm text-purple-600 bg-purple-100 p-2 rounded">
+            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>سيتم تحليل المعاملات من آخر {thresholds.defaultAnalysisPeriod === 0 ? 'جميع الفترات' : `${thresholds.defaultAnalysisPeriod} يوم`} فقط</span>
+          </div>
+        </div>
+
         {/* حدود التصنيف */}
         <div className="space-y-4">
           <h4 className="font-semibold text-gray-700 border-b pb-2">📊 حدود تصنيف الحركة</h4>
           
           {/* سريع جداً */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end p-3 bg-red-50 rounded-lg">
             <div className="col-span-2 md:col-span-4">
               <label className="flex items-center gap-2 text-sm font-medium text-red-600">
                 <span className="w-3 h-3 rounded-full bg-red-500"></span>
-                سريع جداً (Very Fast)
+                سريع جداً (Very Fast) - حركة عالية جداً
               </label>
             </div>
             <div>
@@ -262,11 +321,11 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
           </div>
 
           {/* سريع */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end p-3 bg-orange-50 rounded-lg">
             <div className="col-span-2 md:col-span-4">
               <label className="flex items-center gap-2 text-sm font-medium text-orange-600">
                 <span className="w-3 h-3 rounded-full bg-orange-500"></span>
-                سريع (Fast)
+                سريع (Fast) - حركة جيدة
               </label>
             </div>
             <div>
@@ -292,11 +351,11 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
           </div>
 
           {/* متوسط */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end p-3 bg-yellow-50 rounded-lg">
             <div className="col-span-2 md:col-span-4">
               <label className="flex items-center gap-2 text-sm font-medium text-yellow-600">
                 <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
-                متوسط (Medium)
+                متوسط (Medium) - حركة معتدلة
               </label>
             </div>
             <div>
@@ -322,11 +381,11 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
           </div>
 
           {/* بطيء */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end p-3 bg-blue-50 rounded-lg">
             <div className="col-span-2 md:col-span-4">
               <label className="flex items-center gap-2 text-sm font-medium text-blue-600">
                 <span className="w-3 h-3 rounded-full bg-blue-500"></span>
-                بطيء (Slow)
+                بطيء (Slow) - حركة قليلة
               </label>
             </div>
             <div>
@@ -339,28 +398,45 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
                 disabled={!canEdit}
               />
             </div>
-            <div></div>
-          </div>
-
-          {/* الفترة الافتراضية للتحليل */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end pt-4 border-t">
-            <div className="col-span-2 md:col-span-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-purple-600">
-                📅 الفترة الافتراضية للتحليل
-              </label>
+            <div className="flex items-end">
+              <span className="text-xs text-gray-400">أقل من هذا = عديم الحركة</span>
             </div>
-            <div>
-              <label className="text-xs text-gray-500">عدد الأيام</label>
-              <Input
-                type="number"
-                value={thresholds.defaultAnalysisPeriod}
-                onChange={(e) => updateThreshold('defaultAnalysisPeriod', parseInt(e.target.value) || 90)}
-                className="mt-1"
+          </div>
+        </div>
+
+        {/* خيارات إضافية */}
+        <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+          <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+            ⚙️ خيارات إضافية
+          </h4>
+          
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={thresholds.preferConfirmDate}
+                onChange={(e) => updateThreshold('preferConfirmDate', e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300"
                 disabled={!canEdit}
               />
-              <p className="text-xs text-gray-400 mt-1">الفترة الافتراضية لتحليل الحركة (بالأيام)</p>
-            </div>
+              <div>
+                <span className="text-sm font-medium">استخدام Confirm Date للتاريخ</span>
+                <p className="text-xs text-gray-500">استخدام عمود Confirm Date بدلاً من Date Of Creation</p>
+              </div>
+            </label>
           </div>
+        </div>
+
+        {/* شرح التصنيف */}
+        <div className="space-y-3 p-4 bg-gray-100 rounded-lg text-sm">
+          <h4 className="font-semibold text-gray-700">📋 كيف يعمل التصنيف؟</h4>
+          <ul className="space-y-2 text-gray-600">
+            <li>• <strong>سريع جداً:</strong> معاملات ≥ {thresholds.veryFastMinTransactions} وكمية ≥ {thresholds.veryFastMinQty.toLocaleString()}</li>
+            <li>• <strong>سريع:</strong> معاملات ≥ {thresholds.fastMinTransactions} وكمية ≥ {thresholds.fastMinQty.toLocaleString()}</li>
+            <li>• <strong>متوسط:</strong> معاملات ≥ {thresholds.mediumMinTransactions} وكمية ≥ {thresholds.mediumMinQty.toLocaleString()}</li>
+            <li>• <strong>بطيء:</strong> معاملات ≥ {thresholds.slowMinTransactions}</li>
+            <li>• <strong>عديم الحركة:</strong> أقل من {thresholds.slowMinTransactions} معاملات</li>
+          </ul>
         </div>
 
         {/* تنبيه */}

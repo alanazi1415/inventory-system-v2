@@ -240,12 +240,72 @@ export async function POST(request: NextRequest) {
       const system = body.system || 'mwsal'
       console.log(`Updating stock for all movement items in system: ${system}`)
       
-      const updatedCount = await updateAllMovementStock(system)
+      // جلب بنود تحليل الحركة
+      const movementItems = await db.itemMovement.findMany({
+        where: { system },
+        select: { genericItemNumber: true }
+      })
+      
+      if (movementItems.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'لا توجد بنود في تحليل الحركة'
+        })
+      }
+      
+      // جلب المخزون وتجميعه
+      const inventoryItems = await db.inventoryItem.findMany({
+        where: { system },
+        select: {
+          genericItemNumber: true,
+          tradeItemNumber: true,
+          customerItemNumber: true,
+          totalQty: true,
+          availableQty: true
+        }
+      })
+      
+      // إنشاء خريطة للمخزون
+      const stockMap = new Map<string, { totalQty: number; availableQty: number }>()
+      for (const item of inventoryItems) {
+        const numbers: string[] = [item.genericItemNumber, item.tradeItemNumber, item.customerItemNumber].filter((n): n is string => Boolean(n))
+        for (const num of numbers) {
+          const existing = stockMap.get(num) || { totalQty: 0, availableQty: 0 }
+          existing.totalQty += item.totalQty || 0
+          existing.availableQty += item.availableQty || 0
+          stockMap.set(num, existing)
+        }
+      }
+      
+      // تحديث كل بند في تحليل الحركة
+      let updatedCount = 0
+      for (const item of movementItems) {
+        const stock = stockMap.get(item.genericItemNumber) || { totalQty: 0, availableQty: 0 }
+        try {
+          await db.$executeRawUnsafe(`
+            UPDATE "ItemMovement"
+            SET "currentStock" = ${stock.totalQty},
+                "availableStock" = ${stock.availableQty},
+                "updatedAt" = NOW()
+            WHERE "genericItemNumber" = '${item.genericItemNumber.replace(/'/g, "''")}'
+              AND "system" = '${system}'
+          `)
+          updatedCount++
+        } catch {
+          // تجاهل الأخطاء الفردية
+        }
+      }
+      
+      console.log(`Updated ${updatedCount} items`)
       
       return NextResponse.json({
         success: true,
         message: 'تم تحديث المخزون بنجاح',
-        stats: { updatedItems: updatedCount }
+        stats: { 
+          totalMovementItems: movementItems.length,
+          updatedItems: updatedCount,
+          inventoryItemsFound: stockMap.size
+        }
       })
     }
     
@@ -253,6 +313,7 @@ export async function POST(request: NextRequest) {
     if (body.syncInventory) {
       const system = body.system || 'mwsal'
       
+      // جلب بنود المخزون الفريدة
       const inventoryItems = await db.inventoryItem.findMany({
         where: { system },
         select: {
@@ -263,11 +324,22 @@ export async function POST(request: NextRequest) {
         }
       })
       
+      // الحصول على الأرقام الفريدة
+      const uniqueNumbers = new Set<string>()
+      for (const item of inventoryItems) {
+        if (item.genericItemNumber) {
+          uniqueNumbers.add(item.genericItemNumber)
+        }
+      }
+      
       const existingMovements = await db.itemMovement.findMany({
         where: { system },
         select: { genericItemNumber: true }
       })
       const existingNumbers = new Set(existingMovements.map(m => m.genericItemNumber))
+      
+      // البنود بدون حركة
+      const withoutMovement = [...uniqueNumbers].filter(n => !existingNumbers.has(n)).length
       
       const thresholds = await getThresholds(system)
       const { movementClass, score } = classifyMovement(0, 0, thresholds)
@@ -293,6 +365,7 @@ export async function POST(request: NextRequest) {
               ON CONFLICT DO NOTHING
             `)
             addedCount++
+            existingNumbers.add(item.genericItemNumber) // لتجنب التكرار
           } catch {
             // تجاهل
           }
@@ -302,7 +375,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'تمت المزامنة بنجاح',
-        stats: { totalInventoryItems: inventoryItems.length, added: addedCount }
+        stats: { 
+          uniqueNumbers: uniqueNumbers.size,
+          totalInventoryItems: inventoryItems.length,
+          withoutMovement: withoutMovement,
+          added: addedCount
+        }
       })
     }
     
