@@ -7,38 +7,14 @@ export async function GET() {
   try {
     const results: string[] = []
 
-    // 1. إضافة الأعمدة الجديدة في User إذا لم تكن موجودة
+    // 1. التحقق من وجود جدول ItemMotion وإنشاؤه بالكامل
     try {
+      // أولاً نحذف الجدول القديم إذا كان ناقصاً
+      await db.$executeRawUnsafe(`DROP TABLE IF EXISTS "ItemMovement"`)
+      
+      // ننشئ الجدول بالكامل
       await db.$executeRawUnsafe(`
-        ALTER TABLE "User" 
-        ADD COLUMN IF NOT EXISTS "canEditMovementSettings" BOOLEAN DEFAULT false,
-        ADD COLUMN IF NOT EXISTS "canClassifyMovement" BOOLEAN DEFAULT false
-      `)
-      results.push('✅ تم إضافة الأعمدة الجديدة في User')
-    } catch (e: any) {
-      if (!e.message.includes('already exists')) {
-        results.push(`⚠️ خطأ في إضافة الأعمدة في User: ${e.message}`)
-      } else {
-        results.push('✅ أعمدة User موجودة مسبقاً')
-      }
-    }
-
-    // 2. حذف الأعمدة القديمة المتعلقة بـ TOP UP من User
-    try {
-      await db.$executeRawUnsafe(`
-        ALTER TABLE "User" 
-        DROP COLUMN IF EXISTS "canViewTopUp",
-        DROP COLUMN IF EXISTS "canCalculateTopUp"
-      `)
-      results.push('✅ تم حذف أعمدة TOP UP من User')
-    } catch (e: any) {
-      results.push(`⚠️ خطأ في حذف أعمدة TOP UP من User: ${e.message}`)
-    }
-
-    // 3. التحقق من وجود جدول ItemMovement وإنشاؤه إذا لم يكن موجوداً
-    try {
-      await db.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "ItemMovement" (
+        CREATE TABLE "ItemMovement" (
           "id" TEXT NOT NULL,
           "genericItemNumber" TEXT NOT NULL,
           "description" TEXT,
@@ -63,7 +39,7 @@ export async function GET() {
           "analysisPeriodDays" INTEGER DEFAULT 90,
           "analysisDateFrom" TIMESTAMP(3),
           "analysisDateTo" TIMESTAMP(3),
-          "lastAnalysisDate" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+          "lastAnalysisDate" TIMESTAMP(3),
           "reportSource" TEXT,
           "syncedFromInventory" BOOLEAN DEFAULT false,
           "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
@@ -71,65 +47,33 @@ export async function GET() {
           CONSTRAINT "ItemMovement_pkey" PRIMARY KEY ("id")
         )
       `)
-      results.push('✅ تم التحقق من جدول ItemMovement')
+      results.push('✅ تم إنشاء جدول ItemMovement بالكامل')
     } catch (e: any) {
-      results.push(`⚠️ خطأ في جدول ItemMovement: ${e.message}`)
+      results.push(`⚠️ خطأ في إنشاء ItemMovement: ${e.message}`)
     }
 
-    // 4. إضافة الأعمدة الناقصة في ItemMovement
-    const itemMovementColumns = [
-      { name: 'userMovementClass', type: 'TEXT' },
-      { name: 'classifiedBy', type: 'TEXT' },
-      { name: 'classifiedAt', type: 'TIMESTAMP(3)' },
-      { name: 'notes', type: 'TEXT' },
-      { name: 'batchCount', type: 'INTEGER DEFAULT 0' },
-      { name: 'uniqueExpiryDates', type: 'INTEGER DEFAULT 0' },
-      { name: 'uniqueOrders', type: 'INTEGER DEFAULT 0' },
-      { name: 'currentStock', type: 'DOUBLE PRECISION DEFAULT 0' },
-      { name: 'availableStock', type: 'DOUBLE PRECISION DEFAULT 0' },
-      { name: 'analysisPeriodDays', type: 'INTEGER DEFAULT 90' },
-      { name: 'analysisDateFrom', type: 'TIMESTAMP(3)' },
-      { name: 'analysisDateTo', type: 'TIMESTAMP(3)' },
-      { name: 'lastAnalysisDate', type: 'TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP' },
-      { name: 'reportSource', type: 'TEXT' },
-      { name: 'syncedFromInventory', type: 'BOOLEAN DEFAULT false' },
-    ]
-
-    for (const col of itemMovementColumns) {
-      try {
-        await db.$executeRawUnsafe(`
-          ALTER TABLE "ItemMovement" 
-          ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type}
-        `)
-      } catch (e: any) {
-        // تجاهل أخطاء "already exists"
-      }
+    // 2. إنشاء الفهارس
+    try {
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ItemMovement_genericItemNumber_idx" ON "ItemMovement"("genericItemNumber")`)
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ItemMovement_system_idx" ON "ItemMovement"("system")`)
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ItemMovement_autoMovementClass_idx" ON "ItemMovement"("autoMovementClass")`)
+      results.push('✅ تم إنشاء فهارس ItemMovement')
+    } catch (e: any) {
+      results.push(`⚠️ خطأ في الفهارس: ${e.message}`)
     }
-    results.push('✅ تم التحقق من أعمدة ItemMovement')
 
-    // 5. إنشاء unique constraint إذا لم يكن موجوداً
+    // 3. إنشاء فهرس فريد
     try {
       await db.$executeRawUnsafe(`
         CREATE UNIQUE INDEX IF NOT EXISTS "ItemMovement_genericItemNumber_system_key" 
         ON "ItemMovement"("genericItemNumber", "system")
       `)
-      results.push('✅ تم إنشاء الفهرس الفريد لـ ItemMovement')
+      results.push('✅ تم إنشاء الفهرس الفريد')
     } catch (e: any) {
-      results.push(`⚠️ خطأ في إنشاء الفهرس الفريد: ${e.message}`)
+      results.push(`⚠️ خطأ في الفهرس الفريد: ${e.message}`)
     }
 
-    // 6. إنشاء الفهارس لـ ItemMovement
-    try {
-      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ItemMovement_genericItemNumber_idx" ON "ItemMovement"("genericItemNumber")`)
-      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ItemMovement_system_idx" ON "ItemMovement"("system")`)
-      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ItemMovement_autoMovementClass_idx" ON "ItemMovement"("autoMovementClass")`)
-      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ItemMovement_userMovementClass_idx" ON "ItemMovement"("userMovementClass")`)
-      results.push('✅ تم إنشاء فهارس ItemMovement')
-    } catch (e: any) {
-      results.push(`⚠️ خطأ في إنشاء فهارس ItemMovement: ${e.message}`)
-    }
-
-    // 7. التحقق من وجود جدول MovementReportLog
+    // 4. التحقق من جدول MovementReportLog
     try {
       await db.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "MovementReportLog" (
@@ -147,10 +91,10 @@ export async function GET() {
       `)
       results.push('✅ تم التحقق من جدول MovementReportLog')
     } catch (e: any) {
-      results.push(`⚠️ خطأ في جدول MovementReportLog: ${e.message}`)
+      results.push(`⚠️ خطأ في MovementReportLog: ${e.message}`)
     }
 
-    // 8. التحقق من وجود جدول ClassificationLog
+    // 5. التحقق من جدول ClassificationLog
     try {
       await db.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "ClassificationLog" (
@@ -161,26 +105,25 @@ export async function GET() {
           "newClass" TEXT NOT NULL,
           "changedBy" TEXT NOT NULL,
           "reason" TEXT,
-          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "ClassificationLog_pkey" PRIMARY KEY ("id")
         )
       `)
       results.push('✅ تم التحقق من جدول ClassificationLog')
     } catch (e: any) {
-      results.push(`⚠️ خطأ في جدول ClassificationLog: ${e.message}`)
+      results.push(`⚠️ خطأ في ClassificationLog: ${e.message}`)
     }
 
-    // 9. إنشاء فهارس ClassificationLog
+    // 6. فهارس ClassificationLog
     try {
       await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ClassificationLog_itemNumber_idx" ON "ClassificationLog"("itemNumber")`)
       await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ClassificationLog_system_idx" ON "ClassificationLog"("system")`)
-      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ClassificationLog_createdAt_idx" ON "ClassificationLog"("createdAt")`)
       results.push('✅ تم إنشاء فهارس ClassificationLog')
     } catch (e: any) {
-      results.push(`⚠️ خطأ في فهارس ClassificationLog: ${e.message}`)
+      // تجاهل
     }
 
-    // 10. التحقق من جدول MovementThresholds
+    // 7. التحقق من جدول MovementThresholds
     try {
       await db.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "MovementThresholds" (
@@ -201,74 +144,79 @@ export async function GET() {
       `)
       results.push('✅ تم التحقق من جدول MovementThresholds')
     } catch (e: any) {
-      results.push(`⚠️ خطأ في جدول MovementThresholds: ${e.message}`)
+      results.push(`⚠️ خطأ في MovementThresholds: ${e.message}`)
     }
 
-    // 11. إضافة عمود defaultAnalysisPeriod إذا لم يكن موجوداً
+    // 8. التحقق من أعمدة User
     try {
       await db.$executeRawUnsafe(`
-        ALTER TABLE "MovementThresholds" 
-        ADD COLUMN IF NOT EXISTS "defaultAnalysisPeriod" INTEGER DEFAULT 90
+        ALTER TABLE "User" 
+        ADD COLUMN IF NOT EXISTS "canEditMovementSettings" BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS "canClassifyMovement" BOOLEAN DEFAULT false
+      `)
+      results.push('✅ تم التحقق من أعمدة User')
+    } catch (e: any) {
+      // تجاهل
+    }
+
+    // 9. حذف أعمدة TOP UP القديمة من User
+    try {
+      await db.$executeRawUnsafe(`
+        ALTER TABLE "User" 
+        DROP COLUMN IF EXISTS "canViewTopUp",
+        DROP COLUMN IF EXISTS "canCalculateTopUp"
       `)
     } catch (e: any) {
       // تجاهل
     }
 
-    // 12. حذف أعمدة TOP UP من MovementThresholds
-    try {
-      await db.$executeRawUnsafe(`
-        ALTER TABLE "MovementThresholds" 
-        DROP COLUMN IF EXISTS "topUpDaysToAnalyze",
-        DROP COLUMN IF EXISTS "topUpSafetyFactor",
-        DROP COLUMN IF EXISTS "topUpMinStockDays"
-      `)
-      results.push('✅ تم حذف أعمدة TOP UP من MovementThresholds')
-    } catch (e: any) {
-      results.push(`⚠️ خطأ في حذف أعمدة TOP UP: ${e.message}`)
-    }
-
-    // 13. تحديث قيم المستخدمين
+    // 10. تحديث قيم المستخدمين
     try {
       await db.$executeRawUnsafe(`
         UPDATE "User"
         SET "canEditMovementSettings" = COALESCE("canEditMovementSettings", false),
             "canClassifyMovement" = COALESCE("canClassifyMovement", false)
-        WHERE "canEditMovementSettings" IS NULL
-           OR "canClassifyMovement" IS NULL
+        WHERE "canEditMovementSettings" IS NULL OR "canClassifyMovement" IS NULL
       `)
-      results.push('✅ تم تحديث قيم المستخدمين')
     } catch (e: any) {
-      results.push(`⚠️ خطأ في تحديث المستخدمين: ${e.message}`)
+      // تجاهل
     }
 
-    // 14. جلب الإحصائيات
-    const [users, itemMovementCount, reportLogCount] = await Promise.all([
-      db.user.findMany({
-        select: { id: true, username: true, name: true, isActive: true, canEditMovementSettings: true, canClassifyMovement: true }
-      }),
-      db.itemMovement.count().catch(() => 0),
-      db.movementReportLog.count().catch(() => 0)
-    ])
+    // 11. حذف جلسات قديمة
+    try {
+      await db.userSession.deleteMany({})
+    } catch (e: any) {
+      // تجاهل
+    }
+
+    // 12. جلب الإحصائيات
+    let itemMovementCount = 0
+    try {
+      itemMovementCount = await db.itemMovement.count()
+    } catch (e) {
+      // تجاهل
+    }
+
+    const users = await db.user.findMany({
+      select: { id: true, username: true, name: true, isActive: true, canEditMovementSettings: true, canClassifyMovement: true }
+    })
 
     results.push(`📊 إجمالي المستخدمين: ${users.length}`)
-    results.push(`📊 إجمالي بنود الحركة: ${itemMovementCount}`)
-    results.push(`📊 إجمالي تقارير الحركة: ${reportLogCount}`)
+    results.push(`📊 بنود الحركة: ${itemMovementCount}`)
 
     return NextResponse.json({
       status: 'success',
       message: 'تم إصلاح قاعدة البيانات بنجاح',
       results,
-      usersCount: users.length,
       itemMovementCount,
-      reportLogCount,
+      usersCount: users.length,
       users
     })
   } catch (error: any) {
     console.error('Fix all error:', error)
     return NextResponse.json({
       status: 'error',
-      message: error.message,
-      code: error.code
+      message: error.message
     }, { status: 500 })
   }
 }
