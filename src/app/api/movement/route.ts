@@ -235,153 +235,106 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json()
     
-    // طلب تحديث المخزون فقط
+    // طلب تحديث المخزون فقط (محسن للسرعة)
     if (body.updateStock) {
       const system = body.system || 'mwsal'
-      console.log(`Updating stock for all movement items in system: ${system}`)
+      console.log(`Fast stock update for system: ${system}`)
       
-      // جلب بنود تحليل الحركة
-      const movementItems = await db.itemMovement.findMany({
-        where: { system },
-        select: { genericItemNumber: true }
-      })
-      
-      if (movementItems.length === 0) {
+      // تحديث جماعي سريع باستخدام SQL JOIN
+      try {
+        const result = await db.$executeRaw`
+          UPDATE "ItemMovement" im
+          SET 
+            "currentStock" = COALESCE(inv.total_stock, 0),
+            "availableStock" = COALESCE(inv.available_stock, 0),
+            "updatedAt" = NOW()
+          FROM (
+            SELECT 
+              "genericItemNumber" as item_num,
+              SUM("totalQty") as total_stock,
+              SUM("availableQty") as available_stock
+            FROM "InventoryItem"
+            WHERE "system" = ${system}
+            GROUP BY "genericItemNumber"
+          ) inv
+          WHERE im."genericItemNumber" = inv.item_num
+            AND im."system" = ${system}
+        `
+        
+        console.log(`Bulk updated ${result} items`)
+        
+        return NextResponse.json({
+          success: true,
+          message: 'تم تحديث المخزون بنجاح',
+          stats: { 
+            updatedItems: result
+          }
+        })
+      } catch (error: any) {
+        console.error('Bulk update error:', error)
         return NextResponse.json({
           success: false,
-          error: 'لا توجد بنود في تحليل الحركة'
+          error: 'حدث خطأ في تحديث المخزون: ' + error.message
         })
       }
-      
-      // جلب المخزون وتجميعه
-      const inventoryItems = await db.inventoryItem.findMany({
-        where: { system },
-        select: {
-          genericItemNumber: true,
-          tradeItemNumber: true,
-          customerItemNumber: true,
-          totalQty: true,
-          availableQty: true
-        }
-      })
-      
-      // إنشاء خريطة للمخزون
-      const stockMap = new Map<string, { totalQty: number; availableQty: number }>()
-      for (const item of inventoryItems) {
-        const numbers: string[] = [item.genericItemNumber, item.tradeItemNumber, item.customerItemNumber].filter((n): n is string => Boolean(n))
-        for (const num of numbers) {
-          const existing = stockMap.get(num) || { totalQty: 0, availableQty: 0 }
-          existing.totalQty += item.totalQty || 0
-          existing.availableQty += item.availableQty || 0
-          stockMap.set(num, existing)
-        }
-      }
-      
-      // تحديث كل بند في تحليل الحركة
-      let updatedCount = 0
-      for (const item of movementItems) {
-        const stock = stockMap.get(item.genericItemNumber) || { totalQty: 0, availableQty: 0 }
-        try {
-          await db.$executeRawUnsafe(`
-            UPDATE "ItemMovement"
-            SET "currentStock" = ${stock.totalQty},
-                "availableStock" = ${stock.availableQty},
-                "updatedAt" = NOW()
-            WHERE "genericItemNumber" = '${item.genericItemNumber.replace(/'/g, "''")}'
-              AND "system" = '${system}'
-          `)
-          updatedCount++
-        } catch {
-          // تجاهل الأخطاء الفردية
-        }
-      }
-      
-      console.log(`Updated ${updatedCount} items`)
-      
-      return NextResponse.json({
-        success: true,
-        message: 'تم تحديث المخزون بنجاح',
-        stats: { 
-          totalMovementItems: movementItems.length,
-          updatedItems: updatedCount,
-          inventoryItemsFound: stockMap.size
-        }
-      })
     }
     
-    // طلب مزامنة المخزون
+    // طلب مزامنة المخزون (محسن للسرعة)
     if (body.syncInventory) {
       const system = body.system || 'mwsal'
+      console.log(`Fast sync for system: ${system}`)
       
-      // جلب بنود المخزون الفريدة
-      const inventoryItems = await db.inventoryItem.findMany({
-        where: { system },
-        select: {
-          genericItemNumber: true,
-          genericItemDescription: true,
-          totalQty: true,
-          availableQty: true
-        }
-      })
-      
-      // الحصول على الأرقام الفريدة
-      const uniqueNumbers = new Set<string>()
-      for (const item of inventoryItems) {
-        if (item.genericItemNumber) {
-          uniqueNumbers.add(item.genericItemNumber)
-        }
-      }
-      
-      const existingMovements = await db.itemMovement.findMany({
-        where: { system },
-        select: { genericItemNumber: true }
-      })
-      const existingNumbers = new Set(existingMovements.map(m => m.genericItemNumber))
-      
-      // البنود بدون حركة
-      const withoutMovement = [...uniqueNumbers].filter(n => !existingNumbers.has(n)).length
-      
-      const thresholds = await getThresholds(system)
-      const { movementClass, score } = classifyMovement(0, 0, thresholds)
-      
-      let addedCount = 0
-      
-      for (const item of inventoryItems) {
-        if (item.genericItemNumber && !existingNumbers.has(item.genericItemNumber)) {
-          try {
-            await db.$executeRawUnsafe(`
-              INSERT INTO "ItemMovement" (
-                "id", "genericItemNumber", "description", "system",
-                "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
-                "autoMovementClass", "movementScore", "currentStock", "availableStock",
-                "analysisPeriodDays", "reportSource", "syncedFromInventory", "createdAt"
-              ) VALUES (
-                '${generateId()}', '${item.genericItemNumber.replace(/'/g, "''")}', 
-                ${item.genericItemDescription ? `'${item.genericItemDescription.replace(/'/g, "''")}'` : 'NULL'},
-                '${system}', 0, 0, 0, '${movementClass}', ${score},
-                ${item.totalQty || 0}, ${item.availableQty || 0},
-                ${thresholds.defaultAnalysisPeriod}, 'مزامنة تلقائية', true, NOW()
-              )
-              ON CONFLICT DO NOTHING
-            `)
-            addedCount++
-            existingNumbers.add(item.genericItemNumber) // لتجنب التكرار
-          } catch {
-            // تجاهل
+      try {
+        // إدراج جماعي للبنود الجديدة فقط
+        const thresholds = await getThresholds(system)
+        const { movementClass, score } = classifyMovement(0, 0, thresholds)
+        
+        const result = await db.$executeRaw`
+          INSERT INTO "ItemMovement" (
+            "id", "genericItemNumber", "description", "system",
+            "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
+            "autoMovementClass", "movementScore", "currentStock", "availableStock",
+            "analysisPeriodDays", "reportSource", "syncedFromInventory", "createdAt"
+          )
+          SELECT 
+            gen_random_uuid(),
+            i."genericItemNumber",
+            i."genericItemDescription",
+            ${system},
+            0, 0, 0,
+            ${movementClass}, ${score},
+            COALESCE(i."totalQty", 0),
+            COALESCE(i."availableQty", 0),
+            ${thresholds.defaultAnalysisPeriod},
+            'مزامنة تلقائية',
+            true,
+            NOW()
+          FROM "InventoryItem" i
+          WHERE i."system" = ${system}
+            AND i."genericItemNumber" IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM "ItemMovement" m 
+              WHERE m."genericItemNumber" = i."genericItemNumber" 
+              AND m."system" = ${system}
+            )
+        `
+        
+        console.log(`Synced ${result} new items`)
+        
+        return NextResponse.json({
+          success: true,
+          message: 'تمت المزامنة بنجاح',
+          stats: { 
+            added: result
           }
-        }
+        })
+      } catch (error: any) {
+        console.error('Sync error:', error)
+        return NextResponse.json({
+          success: false,
+          error: 'حدث خطأ في المزامنة: ' + error.message
+        })
       }
-      
-      return NextResponse.json({
-        success: true,
-        message: 'تمت المزامنة بنجاح',
-        stats: { 
-          uniqueNumbers: uniqueNumbers.size,
-          totalInventoryItems: inventoryItems.length,
-          withoutMovement: withoutMovement,
-          added: addedCount
-        }
-      })
     }
     
     // طلب تصنيف يدوي
