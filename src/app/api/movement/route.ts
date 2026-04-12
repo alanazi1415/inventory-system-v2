@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // 5 minutes max
+export const maxDuration = 300
 
 // التحقق من صلاحية الأدمن
 async function checkAdminAuth() {
@@ -116,7 +116,12 @@ function classifyMovement(
   }
 }
 
-// معالجة طلب POST (رفع التقرير أو التصنيف اليدوي أو المزامنة)
+// مولد ID
+function generateId(): string {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36)
+}
+
+// معالجة طلب POST
 export async function POST(request: NextRequest) {
   try {
     const access = await checkMovementAccess()
@@ -130,7 +135,6 @@ export async function POST(request: NextRequest) {
     if (body.syncInventory) {
       const system = body.system || 'mwsal'
       
-      // جلب جميع أرقام البنود من المخزون
       const inventoryItems = await db.inventoryItem.findMany({
         where: { system },
         select: {
@@ -141,7 +145,6 @@ export async function POST(request: NextRequest) {
         }
       })
       
-      // جلب البنود الموجودة
       const existingMovements = await db.itemMovement.findMany({
         where: { system },
         select: { genericItemNumber: true }
@@ -153,30 +156,27 @@ export async function POST(request: NextRequest) {
       
       let addedCount = 0
       
-      // إضافة البنود غير الموجودة
       for (const item of inventoryItems) {
         if (item.genericItemNumber && !existingNumbers.has(item.genericItemNumber)) {
           try {
-            await db.itemMovement.create({
-              data: {
-                genericItemNumber: item.genericItemNumber,
-                description: item.genericItemDescription,
-                system,
-                totalQtyDispatched: 0,
-                transactionCount: 0,
-                avgQtyPerTransaction: 0,
-                autoMovementClass: movementClass,
-                movementScore: score,
-                currentStock: item.totalQty,
-                availableStock: item.availableQty,
-                analysisPeriodDays: thresholds.defaultAnalysisPeriod,
-                reportSource: 'مزامنة تلقائية من المخزون',
-                syncedFromInventory: true
-              }
-            })
+            await db.$executeRawUnsafe(`
+              INSERT INTO "ItemMovement" (
+                "id", "genericItemNumber", "description", "system",
+                "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
+                "autoMovementClass", "movementScore", "currentStock", "availableStock",
+                "analysisPeriodDays", "reportSource", "syncedFromInventory", "createdAt"
+              ) VALUES (
+                '${generateId()}', '${item.genericItemNumber.replace(/'/g, "''")}', 
+                ${item.genericItemDescription ? `'${item.genericItemDescription.replace(/'/g, "''")}'` : 'NULL'},
+                '${system}', 0, 0, 0, '${movementClass}', ${score},
+                ${item.totalQty || 0}, ${item.availableQty || 0},
+                ${thresholds.defaultAnalysisPeriod}, 'مزامنة تلقائية', true, NOW()
+              )
+              ON CONFLICT DO NOTHING
+            `)
             addedCount++
           } catch {
-            // تجاهل الأخطاء (البند موجود مسبقاً)
+            // تجاهل
           }
         }
       }
@@ -184,10 +184,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'تمت المزامنة بنجاح',
-        stats: {
-          totalInventoryItems: inventoryItems.length,
-          added: addedCount
-        }
+        stats: { totalInventoryItems: inventoryItems.length, added: addedCount }
       })
     }
     
@@ -203,59 +200,40 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'بيانات غير مكتملة' }, { status: 400 })
       }
       
-      // جلب التصنيف الحالي
-      const currentItem = await db.itemMovement.findUnique({
-        where: {
-          genericItemNumber_system: {
-            genericItemNumber: itemNumber,
-            system
-          }
-        }
+      const currentItem = await db.itemMovement.findFirst({
+        where: { genericItemNumber: itemNumber, system }
       })
       
       if (!currentItem) {
         return NextResponse.json({ error: 'البند غير موجود' }, { status: 404 })
       }
       
-      // تسجيل التغيير
       try {
-        await db.classificationLog.create({
-          data: {
-            itemNumber,
-            system,
-            oldClass: currentItem.userMovementClass || currentItem.autoMovementClass,
-            newClass,
-            changedBy: access.username,
-            reason: reason || null
-          }
-        })
+        await db.$executeRawUnsafe(`
+          INSERT INTO "ClassificationLog" ("id", "itemNumber", "system", "oldClass", "newClass", "changedBy", "reason", "createdAt")
+          VALUES ('${generateId()}', '${itemNumber}', '${system}', 
+            ${currentItem.userMovementClass || currentItem.autoMovementClass ? `'${currentItem.userMovementClass || currentItem.autoMovementClass}'` : 'NULL'},
+            '${newClass}', '${access.username}', ${reason ? `'${reason.replace(/'/g, "''")}'` : 'NULL'}, NOW()
+          )
+        `)
       } catch {
-        // تجاهل إذا فشل تسجيل السجل
+        // تجاهل
       }
       
-      // تحديث التصنيف
-      await db.itemMovement.update({
-        where: {
-          genericItemNumber_system: {
-            genericItemNumber: itemNumber,
-            system
-          }
-        },
-        data: {
-          userMovementClass: newClass,
-          classifiedBy: access.username,
-          classifiedAt: new Date(),
-          notes: reason || null
-        }
-      })
+      await db.$executeRawUnsafe(`
+        UPDATE "ItemMovement" 
+        SET "userMovementClass" = '${newClass}',
+            "classifiedBy" = '${access.username}',
+            "classifiedAt" = NOW(),
+            "notes" = ${reason ? `'${reason.replace(/'/g, "''")}'` : 'NULL'},
+            "updatedAt" = NOW()
+        WHERE "genericItemNumber" = '${itemNumber}' AND "system" = '${system}'
+      `)
       
-      return NextResponse.json({
-        success: true,
-        message: 'تم تحديث التصنيف بنجاح'
-      })
+      return NextResponse.json({ success: true, message: 'تم تحديث التصنيف بنجاح' })
     }
     
-    // رفع تقرير الحركة - محسن للسرعة
+    // رفع تقرير الحركة
     const { items, system, fileName, totalRecords, dateFrom, dateTo, analysisPeriodDays } = body
     
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -267,93 +245,61 @@ export async function POST(request: NextRequest) {
     const thresholds = await getThresholds(system)
     const periodDays = analysisPeriodDays || thresholds.defaultAnalysisPeriod
     
-    // تحضير البيانات للحفظ
-    const itemsToSave = items.map((item: any) => {
-      const totalQty = item.totalQty || 0
-      const transactionCount = item.transactionCount || 0
-      const { movementClass, score } = classifyMovement(transactionCount, totalQty, thresholds)
-      
-      return {
-        genericItemNumber: item.genericItemNumber,
-        description: item.description || '',
-        system,
-        totalQtyDispatched: totalQty,
-        transactionCount,
-        avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
-        autoMovementClass: movementClass,
-        movementScore: score,
-        batchCount: item.batchCount || 0,
-        uniqueExpiryDates: item.uniqueExpiryDates || 0,
-        uniqueOrders: item.uniqueOrders || 0,
-        reportSource: fileName,
-        analysisPeriodDays: periodDays,
-        analysisDateFrom: dateFrom ? new Date(dateFrom) : null,
-        analysisDateTo: dateTo ? new Date(dateTo) : null
-      }
-    })
+    // حذف البيانات القديمة لهذا النظام
+    console.log(`Deleting old data for system: ${system}`)
+    await db.$executeRawUnsafe(`DELETE FROM "ItemMovement" WHERE "system" = '${system}'`)
     
-    // حفظ باستخدام $transaction للسرعة
+    // إدخال البيانات الجديدة
     let savedCount = 0
-    
-    // حفظ في دفعات صغيرة
     const batchSize = 100
-    for (let i = 0; i < itemsToSave.length; i += batchSize) {
-      const batch = itemsToSave.slice(i, i + batchSize)
+    
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize)
       
-      const queries = batch.map(item => 
-        db.itemMovement.upsert({
-          where: {
-            genericItemNumber_system: {
-              genericItemNumber: item.genericItemNumber,
-              system: item.system
-            }
-          },
-          update: {
-            description: item.description,
-            totalQtyDispatched: item.totalQtyDispatched,
-            transactionCount: item.transactionCount,
-            avgQtyPerTransaction: item.avgQtyPerTransaction,
-            autoMovementClass: item.autoMovementClass,
-            movementScore: item.movementScore,
-            batchCount: item.batchCount,
-            uniqueExpiryDates: item.uniqueExpiryDates,
-            uniqueOrders: item.uniqueOrders,
-            lastAnalysisDate: new Date(),
-            reportSource: item.reportSource,
-            analysisPeriodDays: item.analysisPeriodDays,
-            analysisDateFrom: item.analysisDateFrom,
-            analysisDateTo: item.analysisDateTo,
-            syncedFromInventory: false
-          },
-          create: item
-        })
-      )
+      const values = batch.map((item: any) => {
+        const totalQty = item.totalQty || 0
+        const transactionCount = item.transactionCount || 0
+        const { movementClass, score } = classifyMovement(transactionCount, totalQty, thresholds)
+        
+        const id = generateId()
+        const genericItemNumber = (item.genericItemNumber || '').replace(/'/g, "''")
+        const description = (item.description || '').replace(/'/g, "''").substring(0, 200)
+        
+        return `(
+          '${id}', '${genericItemNumber}', '${description}', '${system}',
+          ${totalQty}, ${transactionCount}, ${transactionCount > 0 ? totalQty / transactionCount : 0},
+          '${movementClass}', ${score}, ${item.batchCount || 0}, ${item.uniqueExpiryDates || 0}, ${item.uniqueOrders || 0},
+          ${periodDays}, '${fileName || 'unknown'}', NOW()
+        )`
+      }).join(',')
       
       try {
-        await db.$transaction(queries)
+        await db.$executeRawUnsafe(`
+          INSERT INTO "ItemMovement" (
+            "id", "genericItemNumber", "description", "system",
+            "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
+            "autoMovementClass", "movementScore", "batchCount", "uniqueExpiryDates", "uniqueOrders",
+            "analysisPeriodDays", "reportSource", "createdAt"
+          ) VALUES ${values}
+        `)
         savedCount += batch.length
-      } catch (e) {
-        console.error('Batch error:', e)
-        // محاولة حفظ بشكل فردي
-        for (const item of batch) {
-          try {
-            await db.itemMovement.upsert({
-              where: {
-                genericItemNumber_system: {
-                  genericItemNumber: item.genericItemNumber,
-                  system: item.system
-                }
-              },
-              update: item,
-              create: item
-            })
-            savedCount++
-          } catch {
-            // تجاهل
-          }
-        }
+        console.log(`Saved batch ${Math.floor(i/batchSize) + 1}, total saved: ${savedCount}`)
+      } catch (e: any) {
+        console.error('Batch insert error:', e.message)
       }
     }
+    
+    // تسجيل التقرير
+    try {
+      await db.$executeRawUnsafe(`
+        INSERT INTO "MovementReportLog" ("id", "fileName", "system", "recordsCount", "itemsCount", "createdAt")
+        VALUES ('${generateId()}', '${fileName || 'unknown'}', '${system}', ${totalRecords || 0}, ${items.length}, NOW())
+      `)
+    } catch (e) {
+      console.error('Error logging report:', e)
+    }
+    
+    console.log(`Total saved: ${savedCount} items`)
     
     return NextResponse.json({
       success: true,
@@ -374,7 +320,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// معالجة طلب GET (جلب البيانات)
+// معالجة طلب GET
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -383,36 +329,11 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const limit = parseInt(searchParams.get('limit') || '100')
     const offset = parseInt(searchParams.get('offset') || '0')
-    const periodDays = parseInt(searchParams.get('periodDays') || '0')
-
-    // بناء شروط البحث
-    const allClasses = searchParams.getAll('class').filter(c => c && c !== 'all')
-    const useUserClass = searchParams.get('useUserClass') === 'true'
 
     const where: any = { system }
 
-    // فلترة حسب التصنيف
-    if (allClasses.length > 0) {
-      if (useUserClass) {
-        where.OR = allClasses.map(cls => [
-          { userMovementClass: cls },
-          { userMovementClass: null, autoMovementClass: cls }
-        ]).flat()
-      } else {
-        where.OR = [
-          { autoMovementClass: { in: allClasses } },
-          { autoMovementClass: { in: allClasses } }
-        ]
-      }
-    } else if (movementClass && movementClass !== 'all') {
-      if (useUserClass) {
-        where.OR = [
-          { userMovementClass: movementClass },
-          { userMovementClass: null, autoMovementClass: movementClass }
-        ]
-      } else {
-        where.autoMovementClass = movementClass
-      }
+    if (movementClass && movementClass !== 'all') {
+      where.autoMovementClass = movementClass
     }
 
     if (search) {
@@ -422,14 +343,6 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // فلترة حسب الفترة الزمنية
-    if (periodDays > 0) {
-      const dateFrom = new Date()
-      dateFrom.setDate(dateFrom.getDate() - periodDays)
-      where.lastDispatchDate = { gte: dateFrom }
-    }
-
-    // الترتيب
     const orderBy = movementClass === 'عديم الحركة' 
       ? { genericItemNumber: 'asc' as const }
       : { movementScore: 'desc' as const }
@@ -449,7 +362,6 @@ export async function GET(request: NextRequest) {
       })
     ])
 
-    // حساب عدد الأيام منذ آخر صرف
     const now = new Date()
     const itemsWithDaysSince = items.map(item => {
       let daysSinceLastDispatch: number | null = null
@@ -469,7 +381,6 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // إحصائيات إضافية
     const stats = await db.itemMovement.aggregate({
       where: { system },
       _count: { id: true },
@@ -494,11 +405,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Get movement error:', error)
-    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+    return NextResponse.json({ error: 'حدث خطأ', details: error.message }, { status: 500 })
   }
 }
 
-// معالجة طلب PATCH (تحديث بند واحد)
+// معالجة طلب PATCH
 export async function PATCH(request: NextRequest) {
   try {
     const access = await checkMovementAccess()
@@ -513,60 +424,42 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'بيانات غير مكتملة' }, { status: 400 })
     }
     
-    const currentItem = await db.itemMovement.findUnique({
-      where: {
-        genericItemNumber_system: {
-          genericItemNumber: itemNumber,
-          system
-        }
-      }
+    const currentItem = await db.itemMovement.findFirst({
+      where: { genericItemNumber: itemNumber, system }
     })
     
     if (!currentItem) {
       return NextResponse.json({ error: 'البند غير موجود' }, { status: 404 })
     }
     
-    // تسجيل التغيير
     if (userMovementClass && userMovementClass !== currentItem.userMovementClass) {
       try {
-        await db.classificationLog.create({
-          data: {
-            itemNumber,
-            system,
-            oldClass: currentItem.userMovementClass || currentItem.autoMovementClass,
-            newClass: userMovementClass,
-            changedBy: access.username,
-            reason: notes || null
-          }
-        })
+        await db.$executeRawUnsafe(`
+          INSERT INTO "ClassificationLog" ("id", "itemNumber", "system", "oldClass", "newClass", "changedBy", "createdAt")
+          VALUES ('${generateId()}', '${itemNumber}', '${system}', 
+            '${currentItem.userMovementClass || currentItem.autoMovementClass}',
+            '${userMovementClass}', '${access.username}', NOW()
+          )
+        `)
       } catch {
         // تجاهل
       }
     }
     
-    const updated = await db.itemMovement.update({
-      where: {
-        genericItemNumber_system: {
-          genericItemNumber: itemNumber,
-          system
-        }
-      },
-      data: {
-        userMovementClass: userMovementClass || null,
-        classifiedBy: userMovementClass ? access.username : null,
-        classifiedAt: userMovementClass ? new Date() : null,
-        notes: notes || null
-      }
-    })
+    await db.$executeRawUnsafe(`
+      UPDATE "ItemMovement" 
+      SET "userMovementClass" = ${userMovementClass ? `'${userMovementClass}'` : 'NULL'},
+          "classifiedBy" = ${userMovementClass ? `'${access.username}'` : 'NULL'},
+          "classifiedAt" = ${userMovementClass ? 'NOW()' : 'NULL'},
+          "notes" = ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'},
+          "updatedAt" = NOW()
+      WHERE "genericItemNumber" = '${itemNumber}' AND "system" = '${system}'
+    `)
     
-    return NextResponse.json({
-      success: true,
-      message: 'تم التحديث بنجاح',
-      item: updated
-    })
+    return NextResponse.json({ success: true, message: 'تم التحديث بنجاح' })
     
   } catch (error: any) {
     console.error('Update movement error:', error)
-    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+    return NextResponse.json({ error: 'حدث خطأ', details: error.message }, { status: 500 })
   }
 }
