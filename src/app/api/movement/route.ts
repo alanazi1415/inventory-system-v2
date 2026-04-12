@@ -5,6 +5,91 @@ import { cookies } from 'next/headers'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
+// دالة ذكية لجلب المخزون الكلي للبند
+// تبحث بجميع الأرقام المتاحة وتجمع الكميات
+async function getInventoryStock(itemNumber: string, system: string): Promise<{
+  totalQty: number
+  availableQty: number
+  batchCount: number
+  expiryDates: string[]
+}> {
+  try {
+    // البحث بالرقم الرئيسي وأرقام التجارة والعميل
+    const items = await db.inventoryItem.findMany({
+      where: {
+        system,
+        OR: [
+          { genericItemNumber: itemNumber },
+          { tradeItemNumber: itemNumber },
+          { customerItemNumber: itemNumber }
+        ]
+      },
+      select: {
+        totalQty: true,
+        availableQty: true,
+        expiryDate: true
+      }
+    })
+
+    // تجميع الكميات
+    let totalQty = 0
+    let availableQty = 0
+    const expiryDates: string[] = []
+
+    for (const item of items) {
+      totalQty += item.totalQty || 0
+      availableQty += item.availableQty || 0
+      if (item.expiryDate && !expiryDates.includes(item.expiryDate)) {
+        expiryDates.push(item.expiryDate)
+      }
+    }
+
+    return {
+      totalQty,
+      availableQty,
+      batchCount: items.length, // عدد التشغيلات/الصفوف
+      expiryDates
+    }
+  } catch (error) {
+    console.error('Error getting inventory stock:', error)
+    return { totalQty: 0, availableQty: 0, batchCount: 0, expiryDates: [] }
+  }
+}
+
+// دالة لتحديث المخزون لجميع البنود في تحليل الحركة
+async function updateAllMovementStock(system: string): Promise<number> {
+  try {
+    // جلب جميع بنود الحركة
+    const movementItems = await db.itemMovement.findMany({
+      where: { system },
+      select: { genericItemNumber: true }
+    })
+
+    let updatedCount = 0
+
+    for (const item of movementItems) {
+      const stock = await getInventoryStock(item.genericItemNumber, system)
+
+      // تحديث المخزون في جدول الحركة
+      await db.$executeRawUnsafe(`
+        UPDATE "ItemMovement"
+        SET "currentStock" = ${stock.totalQty},
+            "availableStock" = ${stock.availableQty},
+            "uniqueExpiryDates" = ${stock.expiryDates.length},
+            "updatedAt" = NOW()
+        WHERE "genericItemNumber" = '${item.genericItemNumber.replace(/'/g, "''")}'
+          AND "system" = '${system}'
+      `)
+      updatedCount++
+    }
+
+    return updatedCount
+  } catch (error) {
+    console.error('Error updating movement stock:', error)
+    return 0
+  }
+}
+
 // التحقق من صلاحية الأدمن
 async function checkAdminAuth() {
   try {
@@ -131,6 +216,20 @@ export async function POST(request: NextRequest) {
     
     const body = await request.json()
     
+    // طلب تحديث المخزون فقط
+    if (body.updateStock) {
+      const system = body.system || 'mwsal'
+      console.log(`Updating stock for all movement items in system: ${system}`)
+      
+      const updatedCount = await updateAllMovementStock(system)
+      
+      return NextResponse.json({
+        success: true,
+        message: 'تم تحديث المخزون بنجاح',
+        stats: { updatedItems: updatedCount }
+      })
+    }
+    
     // طلب مزامنة المخزون
     if (body.syncInventory) {
       const system = body.system || 'mwsal'
@@ -234,7 +333,7 @@ export async function POST(request: NextRequest) {
     }
     
     // رفع تقرير الحركة
-    const { items, system, fileName, totalRecords, dateFrom, dateTo, analysisPeriodDays, clearExisting } = body
+    const { items, system, fileName, totalRecords, dateFrom, dateTo, analysisPeriodDays, clearExisting, isLastBatch } = body
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'لا توجد بيانات' }, { status: 400 })
@@ -303,13 +402,22 @@ export async function POST(request: NextRequest) {
     
     console.log(`Total saved: ${savedCount} items`)
     
+    // تحديث المخزون من InventoryItem فقط مع الدفعة الأخيرة
+    let stockUpdatedCount = 0
+    if (isLastBatch) {
+      console.log(`Updating stock from inventory for system: ${system}`)
+      stockUpdatedCount = await updateAllMovementStock(system)
+      console.log(`Updated stock for ${stockUpdatedCount} items`)
+    }
+    
     return NextResponse.json({
       success: true,
       message: 'تم تحليل التقرير بنجاح',
       stats: {
         totalRecords: totalRecords || 0,
         uniqueItems: items.length,
-        savedItems: savedCount
+        savedItems: savedCount,
+        stockUpdated: stockUpdatedCount
       }
     })
     

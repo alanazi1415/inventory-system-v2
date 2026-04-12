@@ -149,6 +149,7 @@ export function MovementPage({ system }: MovementPageProps) {
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [exporting, setExporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [updatingStock, setUpdatingStock] = useState(false)
   const [editingItem, setEditingItem] = useState<string | null>(null)
   const [editClass, setEditClass] = useState<string>('')
   const [editNotes, setEditNotes] = useState<string>('')
@@ -245,6 +246,45 @@ export function MovementPage({ system }: MovementPageProps) {
       setUploadMessage({ type: 'error', text: `حدث خطأ: ${error.message}` })
     } finally {
       setSyncing(false)
+    }
+  }
+
+  // تحديث المخزون من InventoryItem
+  const handleUpdateStock = async () => {
+    setUpdatingStock(true)
+    setUploadMessage(null)
+
+    try {
+      const res = await fetch('/api/movement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system,
+          updateStock: true
+        })
+      })
+
+      const contentType = res.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text()
+        throw new Error(`خطأ في الخادم: ${text.substring(0, 100)}...`)
+      }
+
+      const data = await res.json()
+
+      if (data.success) {
+        setUploadMessage({ 
+          type: 'success', 
+          text: `✅ تم تحديث المخزون بنجاح\n📦 تم تحديث ${data.stats?.updatedItems || 0} بند` 
+        })
+        fetchData()
+      } else {
+        setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في تحديث المخزون' })
+      }
+    } catch (error: any) {
+      setUploadMessage({ type: 'error', text: `حدث خطأ: ${error.message}` })
+    } finally {
+      setUpdatingStock(false)
     }
   }
 
@@ -415,10 +455,12 @@ export function MovementPage({ system }: MovementPageProps) {
       const batchSize = 200
       const totalBatches = Math.ceil(aggregatedItems.length / batchSize)
       let totalSaved = 0
+      let stockUpdated = 0
       let batchErrors: string[] = []
 
       for (let i = 0; i < aggregatedItems.length; i += batchSize) {
         const batchIndex = Math.floor(i / batchSize) + 1
+        const isLastBatch = batchIndex === totalBatches
         const batch = aggregatedItems.slice(i, i + batchSize)
         
         const percent = 60 + Math.floor((batchIndex / totalBatches) * 40)
@@ -437,7 +479,8 @@ export function MovementPage({ system }: MovementPageProps) {
             dateFrom,
             dateTo,
             analysisPeriodDays: selectedPeriod,
-            clearExisting: batchIndex === 1 // حذف البيانات القديمة فقط في الدفعة الأولى
+            clearExisting: batchIndex === 1, // حذف البيانات القديمة فقط في الدفعة الأولى
+            isLastBatch // لتحديث المخزون في الدفعة الأخيرة فقط
           })
         })
 
@@ -452,6 +495,9 @@ export function MovementPage({ system }: MovementPageProps) {
 
         if (data.success) {
           totalSaved += (data.stats?.savedItems || batch.length)
+          if (data.stats?.stockUpdated) {
+            stockUpdated = data.stats.stockUpdated
+          }
         } else {
           batchErrors.push(data.error || 'خطأ غير معروف')
           // إذا كان الخطأ متعلق بقاعدة البيانات، نتوقف
@@ -468,9 +514,15 @@ export function MovementPage({ system }: MovementPageProps) {
       setUploadPercent(100)
       setUploadProgress('اكتمل!')
       
+      let successMsg = `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n`
+      successMsg += `📦 تم حفظ ${totalSaved.toLocaleString('ar-SA')} بند\n`
+      if (stockUpdated > 0) {
+        successMsg += `📊 تم تحديث المخزون لـ ${stockUpdated.toLocaleString('ar-SA')} بند`
+      }
+      
       setUploadMessage({ 
         type: 'success', 
-        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n📦 تم حفظ ${totalSaved.toLocaleString('ar-SA')} بند` 
+        text: successMsg
       })
       fetchData()
     } catch (error: any) {
@@ -629,6 +681,26 @@ export function MovementPage({ system }: MovementPageProps) {
                     <>
                       <Link2 className="w-4 h-4" />
                       مزامنة المخزون
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUpdateStock}
+                  disabled={updatingStock || total === 0}
+                  className="gap-2"
+                  title="تحديث كميات المخزون من المخزون اللحظي"
+                >
+                  {updatingStock ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      جاري التحديث...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-4 h-4" />
+                      تحديث الكميات
                     </>
                   )}
                 </Button>
