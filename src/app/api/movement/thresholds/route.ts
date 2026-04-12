@@ -105,9 +105,7 @@ const DEFAULT_THRESHOLDS = {
   mediumMinTransactions: 10,
   mediumMinQty: 500,
   slowMinTransactions: 3,
-  topUpDaysToAnalyze: 90,
-  topUpSafetyFactor: 1.5,
-  topUpMinStockDays: 30
+  defaultAnalysisPeriod: 90
 }
 
 // جلب إعدادات الحدود (للعرض - أي مستخدم لديه صلاحية تحليل الحركة)
@@ -171,9 +169,7 @@ export async function POST(request: NextRequest) {
       mediumMinTransactions,
       mediumMinQty,
       slowMinTransactions,
-      topUpDaysToAnalyze,
-      topUpSafetyFactor,
-      topUpMinStockDays
+      defaultAnalysisPeriod
     } = body
 
     if (!system) {
@@ -191,9 +187,7 @@ export async function POST(request: NextRequest) {
         mediumMinTransactions: mediumMinTransactions ?? DEFAULT_THRESHOLDS.mediumMinTransactions,
         mediumMinQty: mediumMinQty ?? DEFAULT_THRESHOLDS.mediumMinQty,
         slowMinTransactions: slowMinTransactions ?? DEFAULT_THRESHOLDS.slowMinTransactions,
-        topUpDaysToAnalyze: topUpDaysToAnalyze ?? DEFAULT_THRESHOLDS.topUpDaysToAnalyze,
-        topUpSafetyFactor: topUpSafetyFactor ?? DEFAULT_THRESHOLDS.topUpSafetyFactor,
-        topUpMinStockDays: topUpMinStockDays ?? DEFAULT_THRESHOLDS.topUpMinStockDays
+        defaultAnalysisPeriod: defaultAnalysisPeriod ?? DEFAULT_THRESHOLDS.defaultAnalysisPeriod
       },
       create: {
         system,
@@ -204,9 +198,7 @@ export async function POST(request: NextRequest) {
         mediumMinTransactions: mediumMinTransactions ?? DEFAULT_THRESHOLDS.mediumMinTransactions,
         mediumMinQty: mediumMinQty ?? DEFAULT_THRESHOLDS.mediumMinQty,
         slowMinTransactions: slowMinTransactions ?? DEFAULT_THRESHOLDS.slowMinTransactions,
-        topUpDaysToAnalyze: topUpDaysToAnalyze ?? DEFAULT_THRESHOLDS.topUpDaysToAnalyze,
-        topUpSafetyFactor: topUpSafetyFactor ?? DEFAULT_THRESHOLDS.topUpSafetyFactor,
-        topUpMinStockDays: topUpMinStockDays ?? DEFAULT_THRESHOLDS.topUpMinStockDays
+        defaultAnalysisPeriod: defaultAnalysisPeriod ?? DEFAULT_THRESHOLDS.defaultAnalysisPeriod
       }
     })
 

@@ -17,9 +17,7 @@ interface Thresholds {
   mediumMinTransactions: number
   mediumMinQty: number
   slowMinTransactions: number
-  topUpDaysToAnalyze: number
-  topUpSafetyFactor: number
-  topUpMinStockDays: number
+  defaultAnalysisPeriod: number
 }
 
 const DEFAULT_THRESHOLDS: Thresholds = {
@@ -30,9 +28,7 @@ const DEFAULT_THRESHOLDS: Thresholds = {
   mediumMinTransactions: 10,
   mediumMinQty: 500,
   slowMinTransactions: 3,
-  topUpDaysToAnalyze: 90,
-  topUpSafetyFactor: 1.5,
-  topUpMinStockDays: 30
+  defaultAnalysisPeriod: 90
 }
 
 export function MovementSettings({ system }: ThresholdSettingsProps) {
@@ -88,9 +84,7 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
           mediumMinTransactions: data.thresholds.mediumMinTransactions,
           mediumMinQty: data.thresholds.mediumMinQty,
           slowMinTransactions: data.thresholds.slowMinTransactions,
-          topUpDaysToAnalyze: data.thresholds.topUpDaysToAnalyze,
-          topUpSafetyFactor: data.thresholds.topUpSafetyFactor,
-          topUpMinStockDays: data.thresholds.topUpMinStockDays
+          defaultAnalysisPeriod: data.thresholds.defaultAnalysisPeriod
         })
         setIsDefault(data.thresholds.isDefault)
       }
@@ -347,46 +341,24 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
             </div>
             <div></div>
           </div>
-        </div>
 
-        {/* إعدادات TOP UP */}
-        <div className="space-y-4 pt-4 border-t">
-          <h4 className="font-semibold text-gray-700 border-b pb-2">📦 إعدادات اقتراحات التغذية (TOP UP)</h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs text-gray-500">عدد أيام التحليل</label>
-              <Input
-                type="number"
-                value={thresholds.topUpDaysToAnalyze}
-                onChange={(e) => updateThreshold('topUpDaysToAnalyze', parseInt(e.target.value) || 0)}
-                className="mt-1"
-                disabled={!canEdit}
-              />
-              <p className="text-xs text-gray-400 mt-1">عدد الأيام السابقة لحساب متوسط الاستهلاك</p>
+          {/* الفترة الافتراضية للتحليل */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end pt-4 border-t">
+            <div className="col-span-2 md:col-span-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-purple-600">
+                📅 الفترة الافتراضية للتحليل
+              </label>
             </div>
             <div>
-              <label className="text-xs text-gray-500">معامل الأمان</label>
+              <label className="text-xs text-gray-500">عدد الأيام</label>
               <Input
                 type="number"
-                step="0.1"
-                value={thresholds.topUpSafetyFactor}
-                onChange={(e) => updateThreshold('topUpSafetyFactor', parseFloat(e.target.value) || 1)}
+                value={thresholds.defaultAnalysisPeriod}
+                onChange={(e) => updateThreshold('defaultAnalysisPeriod', parseInt(e.target.value) || 90)}
                 className="mt-1"
                 disabled={!canEdit}
               />
-              <p className="text-xs text-gray-400 mt-1">مضاعفة المخزون المطلوب للأمان (1.5 = 150%)</p>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">الحد الأدنى لأيام المخزون</label>
-              <Input
-                type="number"
-                value={thresholds.topUpMinStockDays}
-                onChange={(e) => updateThreshold('topUpMinStockDays', parseInt(e.target.value) || 0)}
-                className="mt-1"
-                disabled={!canEdit}
-              />
-              <p className="text-xs text-gray-400 mt-1">أيام المخزون المستهدفة لكل بند</p>
+              <p className="text-xs text-gray-400 mt-1">الفترة الافتراضية لتحليل الحركة (بالأيام)</p>
             </div>
           </div>
         </div>
