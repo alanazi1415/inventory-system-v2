@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
   Users, UserPlus, Edit2, Trash2, Save, X, Check, Package, AlertTriangle, Clock, 
   Heart, Syringe, Shield, Cigarette, Droplets, Building2, FileText, Database, Activity,
-  Settings, TrendingUp, Calculator
+  Settings
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -35,8 +35,7 @@ const PERMISSIONS: Permission[] = [
 // صلاحيات تحليل الحركة المتقدمة
 const MOVEMENT_PERMISSIONS: Permission[] = [
   { key: 'canEditMovementSettings', label: 'تعديل الإعدادات', icon: Settings },
-  { key: 'canViewTopUp', label: 'عرض اقتراحات التغذية', icon: TrendingUp },
-  { key: 'canCalculateTopUp', label: 'حساب الاقتراحات', icon: Calculator },
+  { key: 'canClassifyMovement', label: 'التصنيف اليدوي للبنود', icon: Edit2 },
 ]
 
 const SYSTEM_PERMISSIONS: Permission[] = [
@@ -64,8 +63,7 @@ interface User {
   canViewHoz: boolean
   canViewMwsal: boolean
   canEditMovementSettings: boolean
-  canViewTopUp: boolean
-  canCalculateTopUp: boolean
+  canClassifyMovement: boolean
   createdAt: string
 }
 
@@ -95,8 +93,7 @@ export function UserManagement() {
     canViewHoz: true,
     canViewMwsal: true,
     canEditMovementSettings: false,
-    canViewTopUp: true,
-    canCalculateTopUp: false,
+    canClassifyMovement: false,
   })
 
   useEffect(() => {
@@ -137,8 +134,7 @@ export function UserManagement() {
       canViewHoz: true,
       canViewMwsal: true,
       canEditMovementSettings: false,
-      canViewTopUp: true,
-      canCalculateTopUp: false,
+      canClassifyMovement: false,
     })
     setEditingUser(null)
     setShowForm(false)
@@ -166,8 +162,7 @@ export function UserManagement() {
       canViewHoz: user.canViewHoz,
       canViewMwsal: user.canViewMwsal,
       canEditMovementSettings: user.canEditMovementSettings,
-      canViewTopUp: user.canViewTopUp,
-      canCalculateTopUp: user.canCalculateTopUp,
+      canClassifyMovement: user.canClassifyMovement || false,
     })
     setShowForm(true)
   }
@@ -246,8 +241,7 @@ export function UserManagement() {
       canViewHoz: value,
       canViewMwsal: value,
       canEditMovementSettings: value,
-      canViewTopUp: value,
-      canCalculateTopUp: value,
+      canClassifyMovement: value,
     }))
   }
 
@@ -476,7 +470,7 @@ export function UserManagement() {
                             {p.label}
                           </Badge>
                         ))}
-                        {user.canViewMovement && (user.canEditMovementSettings || user.canCalculateTopUp) && (
+                        {user.canViewMovement && (user.canEditMovementSettings || user.canClassifyMovement) && (
                           <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                             صلاحيات متقدمة
                           </Badge>

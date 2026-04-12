@@ -5,17 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { 
-  TrendingUp, TrendingDown, Minus, Upload, Search, Filter, 
+  TrendingUp, Upload, Search, Filter, 
   Package, Activity, BarChart3, PieChart as PieChartIcon, RefreshCw,
   Flame, Zap, Clock, Snowflake, Download, Link2, Database, Settings,
-  Calculator
+  Edit3, Save, X, Info, Calendar, Layers
 } from "lucide-react"
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip, Legend, ResponsiveContainer, LineChart, Line
+  Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { MovementSettings } from './MovementSettings'
-import { TopUpSuggestions } from './TopUpSuggestions'
 
 interface MovementItem {
   id: string
@@ -28,14 +27,29 @@ interface MovementItem {
   firstDispatchDate: string | null
   lastDispatchDate: string | null
   daysSpan: number
-  movementClass: string
+  autoMovementClass: string
+  userMovementClass: string | null
+  effectiveMovementClass: string
+  isUserClassified: boolean
   movementScore: number
   daysSinceLastDispatch: number | null
+  batchCount: number
+  uniqueExpiryDates: number
+  uniqueOrders: number
+  currentStock: number
+  availableStock: number
+  notes: string | null
 }
 
 interface ClassCount {
   class: string
   count: number
+}
+
+interface Stats {
+  totalItems: number
+  totalQtyDispatched: number
+  totalTransactions: number
 }
 
 const MOVEMENT_COLORS = {
@@ -46,32 +60,35 @@ const MOVEMENT_COLORS = {
   'عديم الحركة': '#6b7280'
 }
 
-const MOVEMENT_ICONS = {
-  'سريع جداً': Flame,
-  'سريع': Zap,
-  'متوسط': Activity,
-  'بطيء': Clock,
-  'عديم الحركة': Snowflake
-}
+const PERIOD_OPTIONS = [
+  { value: 0, label: 'جميع الفترات' },
+  { value: 30, label: 'آخر شهر' },
+  { value: 60, label: 'آخر شهرين' },
+  { value: 90, label: 'آخر 3 أشهر' },
+  { value: 180, label: 'آخر 6 أشهر' },
+  { value: 365, label: 'آخر سنة' },
+]
 
-// تحليل الأعمدة بشكل ذكي (نسخة المتصفح)
+// تحليل الأعمدة بشكل ذكي
 function analyzeColumns(headers: string[]) {
   const result = {
     itemNumberCol: -1,
     qtyCol: -1,
     dateCol: -1,
     descCol: -1,
+    batchCol: -1,
+    expiryCol: -1,
+    orderCol: -1,
   }
   
   const itemNumberKeywords = ['generic item number', 'item number', 'generic', 'رقم البند', 'كود']
   const qtyKeywords = ['pick qty', 'quantity', 'qty', 'الكمية', 'صرف']
   const descKeywords = ['description', 'وصف', 'trade description', 'name']
-  
-  // كلمات مفتاحية لأعمدة التواريخ التي يجب استبعادها (تواريخ صلاحية/إنتاج)
-  const excludeDateKeywords = ['best before', 'expiry', 'expiration', 'انتهاء', 'production', 'تاريخ الانتاج']
-  // كلمات مفتاحية مفضلة لعامود تاريخ الصرف (أولوية عالية)
+  const batchKeywords = ['batch', 'lot', 'تشغيلة', 'رقم التشغيلة']
+  const expiryKeywords = ['best before', 'expiry', 'انتهاء', 'تاريخ الانتهاء']
+  const orderKeywords = ['sales order', 'order number', 'رقم الطلب', 'أمر البيع']
   const preferredDateKeywords = ['confirm date', 'تاريخ الصرف', 'تاريخ التأكيد']
-  // كلمات مفتاحية عامة للتواريخ (أولوية منخفضة)
+  const excludeDateKeywords = ['best before', 'expiry', 'expiration', 'انتهاء', 'production']
   const genericDateKeywords = ['date', 'creation', 'تاريخ']
 
   headers.forEach((header, index) => {
@@ -79,25 +96,26 @@ function analyzeColumns(headers: string[]) {
     if (result.itemNumberCol === -1 && itemNumberKeywords.some(k => h.includes(k))) result.itemNumberCol = index
     if (result.qtyCol === -1 && qtyKeywords.some(k => h.includes(k))) result.qtyCol = index
     if (result.descCol === -1 && descKeywords.some(k => h.includes(k))) result.descCol = index
+    if (result.batchCol === -1 && batchKeywords.some(k => h.includes(k))) result.batchCol = index
+    if (result.expiryCol === -1 && expiryKeywords.some(k => h.includes(k))) result.expiryCol = index
+    if (result.orderCol === -1 && orderKeywords.some(k => h.includes(k))) result.orderCol = index
   })
 
-  // البحث عن عامود التاريخ: أولاً التاريخ المفضل (Confirm Date)، ثم العام (مع استبعاد تواريخ الصلاحية)
+  // البحث عن عامود التاريخ المفضل
   headers.forEach((header, index) => {
     if (result.dateCol !== -1) return
     const h = String(header).toLowerCase().trim()
-    // أولاً: أعمدة التاريخ المفضلة (تاريخ الصرف الفعلي)
     if (preferredDateKeywords.some(k => h === k || h.includes(k))) {
       result.dateCol = index
       return
     }
   })
 
-  // إذا لم يُعثر على عامود تاريخ مفضل، ابحث عن عامود تاريخ عام مع استبعاد تواريخ الصلاحية
+  // البحث عن عامود تاريخ عام
   if (result.dateCol === -1) {
     headers.forEach((header, index) => {
       if (result.dateCol !== -1) return
       const h = String(header).toLowerCase().trim()
-      // استبعاد أعمدة تواريخ الصلاحية والإنتاج
       if (excludeDateKeywords.some(k => h.includes(k))) return
       if (genericDateKeywords.some(k => h.includes(k))) {
         result.dateCol = index
@@ -112,22 +130,27 @@ interface MovementPageProps {
   system: 'hoz' | 'mwsal'
 }
 
-type TabType = 'analysis' | 'topup' | 'settings'
+type TabType = 'analysis' | 'settings'
 
 export function MovementPage({ system }: MovementPageProps) {
   const [activeTab, setActiveTab] = useState<TabType>('analysis')
   const [items, setItems] = useState<MovementItem[]>([])
   const [classCounts, setClassCounts] = useState<ClassCount[]>([])
+  const [stats, setStats] = useState<Stats>({ totalItems: 0, totalQtyDispatched: 0, totalTransactions: 0 })
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('all')
+  const [selectedPeriod, setSelectedPeriod] = useState(90)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [exporting, setExporting] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [editingItem, setEditingItem] = useState<string | null>(null)
+  const [editClass, setEditClass] = useState<string>('')
+  const [editNotes, setEditNotes] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const pageSize = 50
@@ -140,6 +163,7 @@ export function MovementPage({ system }: MovementPageProps) {
       let url = `/api/movement?system=${system}&limit=${pageSize}&offset=${offset}`
       if (selectedClass !== 'all') url += `&class=${encodeURIComponent(selectedClass)}`
       if (search) url += `&search=${encodeURIComponent(search)}`
+      if (selectedPeriod > 0) url += `&periodDays=${selectedPeriod}`
       
       const res = await fetch(url)
       const data = await res.json()
@@ -148,6 +172,7 @@ export function MovementPage({ system }: MovementPageProps) {
         setItems(data.items)
         setTotal(data.total)
         setClassCounts(data.classCounts || [])
+        setStats(data.stats || { totalItems: 0, totalQtyDispatched: 0, totalTransactions: 0 })
       }
     } catch (error) {
       console.error('Error fetching movement data:', error)
@@ -160,7 +185,7 @@ export function MovementPage({ system }: MovementPageProps) {
     if (activeTab === 'analysis') {
       fetchData()
     }
-  }, [system, page, selectedClass, activeTab])
+  }, [system, page, selectedClass, selectedPeriod, activeTab])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -184,7 +209,8 @@ export function MovementPage({ system }: MovementPageProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           system,
-          syncInventory: true
+          syncInventory: true,
+          analysisPeriodDays: selectedPeriod
         })
       })
 
@@ -194,14 +220,10 @@ export function MovementPage({ system }: MovementPageProps) {
         const stats = data.stats
         let msg = `✅ تمت المزامنة بنجاح\n\n`
         msg += `📊 الإحصائيات:\n`
-        msg += `• إجمالي البنود في المخزون: ${stats.total}\n`
-        msg += `• البنود الموجودة في تحليل الحركة: ${stats.alreadyInMovement || 0}\n`
-        msg += `• البنود بدون أرقام صالحة: ${stats.withNullNumbers || 0}\n`
+        msg += `• البنود في المخزون: ${stats.uniqueNumbers || stats.totalInventoryItems}\n`
         msg += `• بنود عديمة الحركة للإضافة: ${stats.withoutMovement}\n`
-        msg += `• تمت الإضافة فعلياً: ${stats.added}\n`
-        if (stats.errors > 0) {
-          msg += `• أخطاء (بنود مكررة): ${stats.errors}\n`
-        }
+        msg += `• تمت الإضافة: ${stats.added}\n`
+        msg += `• تم التحديث: ${stats.updated}\n`
         setUploadMessage({ type: 'success', text: msg })
         fetchData()
       } else {
@@ -241,7 +263,6 @@ export function MovementPage({ system }: MovementPageProps) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // تأكيد المستودع
     const confirmMsg = `سيتم رفع التقرير إلى: ${systemName}\n\nهل أنت متأكد أن هذا التقرير يخص ${systemName}؟`
     if (!confirm(confirmMsg)) {
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -253,11 +274,9 @@ export function MovementPage({ system }: MovementPageProps) {
     setUploadProgress('جاري قراءة الملف...')
 
     try {
-      // تحميل مكتبة xlsx ديناميكياً في المتصفح
       const XLSX = await import('xlsx')
       setUploadProgress('جاري تحليل البيانات...')
 
-      // قراءة الملف في المتصفح
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
@@ -286,6 +305,9 @@ export function MovementPage({ system }: MovementPageProps) {
         transactionCount: number
         description: string
         dates: string[]
+        batches: Set<string>
+        expiryDates: Set<string>
+        orders: Set<string>
       }>()
 
       let dateFrom: string | null = null
@@ -301,6 +323,9 @@ export function MovementPage({ system }: MovementPageProps) {
         if (!itemNumber || qty <= 0) continue
 
         const description = colMap.descCol !== -1 ? String(row[colMap.descCol] || '') : ''
+        const batch = colMap.batchCol !== -1 ? String(row[colMap.batchCol] || '') : ''
+        const expiry = colMap.expiryCol !== -1 ? String(row[colMap.expiryCol] || '') : ''
+        const order = colMap.orderCol !== -1 ? String(row[colMap.orderCol] || '') : ''
 
         // استخراج التاريخ
         let dateStr: string | null = null
@@ -323,7 +348,10 @@ export function MovementPage({ system }: MovementPageProps) {
           totalQty: 0,
           transactionCount: 0,
           description: '',
-          dates: [] as string[]
+          dates: [] as string[],
+          batches: new Set<string>(),
+          expiryDates: new Set<string>(),
+          orders: new Set<string>()
         }
 
         existing.totalQty += qty
@@ -334,10 +362,12 @@ export function MovementPage({ system }: MovementPageProps) {
         if (dateStr) {
           existing.dates.push(dateStr)
         }
+        if (batch) existing.batches.add(batch)
+        if (expiry) existing.expiryDates.add(expiry)
+        if (order) existing.orders.add(order)
 
         movementMap.set(itemNumber, existing)
 
-        // تحديث التقدم كل 5000 صف
         if (i % 5000 === 0) {
           setUploadProgress(`جاري تحليل الصف ${i.toLocaleString('ar-SA')} من ${(rawData.length - 1).toLocaleString('ar-SA')}...`)
         }
@@ -345,16 +375,19 @@ export function MovementPage({ system }: MovementPageProps) {
 
       setUploadProgress(`جاري إرسال البيانات (${movementMap.size.toLocaleString('ar-SA')} بند)...`)
 
-      // إرسال البيانات المجمعة إلى السيرفر (بدون الملف الكبير)
-      const aggregatedItems = Array.from(movementMap.entries()).map(([itemNumber, stats]) => ({
+      // إرسال البيانات المجمعة
+      const aggregatedItems = Array.from(movementMap.entries()).map(([itemNumber, data]) => ({
         genericItemNumber: itemNumber,
-        description: stats.description,
-        totalQty: stats.totalQty,
-        transactionCount: stats.transactionCount,
-        dates: stats.dates
+        description: data.description,
+        totalQty: data.totalQty,
+        transactionCount: data.transactionCount,
+        dates: data.dates,
+        batchCount: data.batches.size,
+        uniqueExpiryDates: data.expiryDates.size,
+        uniqueOrders: data.orders.size
       }))
 
-      // إرسال على دفعات لتجنب مشاكل الحجم
+      // إرسال على دفعات
       const batchSize = 500
       let totalSaved = 0
 
@@ -371,7 +404,8 @@ export function MovementPage({ system }: MovementPageProps) {
             totalRecords: rawData.length - 1,
             uniqueItems: movementMap.size,
             dateFrom,
-            dateTo
+            dateTo,
+            analysisPeriodDays: selectedPeriod
           })
         })
 
@@ -389,7 +423,7 @@ export function MovementPage({ system }: MovementPageProps) {
       // مزامنة البنود من المخزون
       setUploadProgress('جاري مزامنة البنود من المخزون...')
       try {
-        await fetch(`/api/movement?system=${system}&sync=true`)
+        await fetch(`/api/movement?system=${system}&sync=true&periodDays=${selectedPeriod}`)
       } catch (e) {
         console.error('Sync error:', e)
       }
@@ -411,14 +445,57 @@ export function MovementPage({ system }: MovementPageProps) {
     }
   }
 
-  // بيانات الرسم الدائري
+  // حفظ التصنيف اليدوي
+  const handleSaveClassification = async (itemNumber: string) => {
+    try {
+      const res = await fetch('/api/movement', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemNumber,
+          system,
+          userMovementClass: editClass,
+          notes: editNotes
+        })
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setUploadMessage({ type: 'success', text: 'تم حفظ التصنيف بنجاح' })
+        setEditingItem(null)
+        setEditClass('')
+        setEditNotes('')
+        fetchData()
+      } else {
+        setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ' })
+      }
+    } catch (error: any) {
+      setUploadMessage({ type: 'error', text: 'حدث خطأ في الاتصال' })
+    }
+  }
+
+  // بدء التعديل
+  const startEditing = (item: MovementItem) => {
+    setEditingItem(item.genericItemNumber)
+    setEditClass(item.userMovementClass || item.autoMovementClass)
+    setEditNotes(item.notes || '')
+  }
+
+  // إلغاء التعديل
+  const cancelEditing = () => {
+    setEditingItem(null)
+    setEditClass('')
+    setEditNotes('')
+  }
+
+  // بيانات الرسوم البيانية
   const pieData = classCounts.map(c => ({
     name: c.class,
     value: c.count,
     color: MOVEMENT_COLORS[c.class as keyof typeof MOVEMENT_COLORS] || '#999'
   }))
 
-  // بيانات الرسم الشريطي
   const barData = classCounts.map(c => ({
     name: c.class,
     البنود: c.count,
@@ -446,7 +523,6 @@ export function MovementPage({ system }: MovementPageProps) {
 
   const tabs = [
     { id: 'analysis' as TabType, label: 'تحليل الحركة', icon: Activity },
-    { id: 'topup' as TabType, label: 'اقتراحات التغذية', icon: Calculator },
     { id: 'settings' as TabType, label: 'الإعدادات', icon: Settings },
   ]
 
@@ -489,9 +565,9 @@ export function MovementPage({ system }: MovementPageProps) {
               <p className="text-gray-500">{systemName} • {total.toLocaleString('ar-SA')} بند</p>
             </div>
             
-            {/* رفع التقرير + تصدير */}
+            {/* الأزرار */}
             <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${system === 'mwsal' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                   المستودع: {systemName}
                 </span>
@@ -501,7 +577,7 @@ export function MovementPage({ system }: MovementPageProps) {
                   onClick={handleSync}
                   disabled={syncing}
                   className="gap-2"
-                  title="مزامنة البنود من المخزون (إضافة البنود بدون صرف كعديمة الحركة)"
+                  title="مزامنة البنود من المخزون"
                 >
                   {syncing ? (
                     <>
@@ -564,17 +640,44 @@ export function MovementPage({ system }: MovementPageProps) {
             </div>
           )}
 
-          {/* تنبيه المستودع والمزامنة */}
-          <div className={`p-4 rounded-lg border ${system === 'mwsal' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
-            <div className="space-y-2">
-              <p className="text-sm">
-                <strong>📌 ملاحظة:</strong> سيتم حفظ البيانات في <strong>{systemName}</strong> فقط.
-                {system === 'mwsal' ? ' (مستودع موصول E300)' : ' (مستودع هوز E200)'}
-              </p>
-              <p className="text-sm">
-                <strong>🔗 المزامنة:</strong> اضغط "مزامنة المخزون" لإضافة البنود الموجودة في المخزون والتي ليس لها سجلات صرف كـ <strong>"عديمة الحركة"</strong>.
-              </p>
-            </div>
+          {/* ملخص الإحصائيات */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-gray-500 mb-1">
+                  <Package className="w-4 h-4" />
+                  <span className="text-sm">إجمالي البنود</span>
+                </div>
+                <p className="text-2xl font-bold">{stats.totalItems.toLocaleString('ar-SA')}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-gray-500 mb-1">
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="text-sm">الكمية المصروفة</span>
+                </div>
+                <p className="text-2xl font-bold">{stats.totalQtyDispatched.toLocaleString('ar-SA')}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-gray-500 mb-1">
+                  <Activity className="w-4 h-4" />
+                  <span className="text-sm">المعاملات</span>
+                </div>
+                <p className="text-2xl font-bold">{stats.totalTransactions.toLocaleString('ar-SA')}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-gray-500 mb-1">
+                  <Layers className="w-4 h-4" />
+                  <span className="text-sm">فترة التحليل</span>
+                </div>
+                <p className="text-2xl font-bold">{selectedPeriod === 0 ? 'الكل' : `${selectedPeriod} يوم`}</p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* ملخص التصنيفات */}
@@ -608,7 +711,6 @@ export function MovementPage({ system }: MovementPageProps) {
 
           {/* الرسوم البيانية */}
           <div className="grid md:grid-cols-2 gap-6">
-            {/* رسم دائري */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -648,7 +750,6 @@ export function MovementPage({ system }: MovementPageProps) {
               </CardContent>
             </Card>
 
-            {/* رسم شريطي */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -710,6 +811,19 @@ export function MovementPage({ system }: MovementPageProps) {
                   </select>
                 </div>
 
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(parseInt(e.target.value))}
+                    className="border rounded-lg px-3 py-2 text-sm"
+                  >
+                    {PERIOD_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <Button variant="outline" size="sm" onClick={fetchData}>
                   <RefreshCw className="w-4 h-4" />
                 </Button>
@@ -723,6 +837,7 @@ export function MovementPage({ system }: MovementPageProps) {
               <CardTitle>قائمة البنود</CardTitle>
               <CardDescription>
                 عرض {items.length} من أصل {total.toLocaleString('ar-SA')} بند
+                {' '}• اضغط على ✏️ لتعديل تصنيف البند
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -746,10 +861,10 @@ export function MovementPage({ system }: MovementPageProps) {
                         <th className="text-center p-3 font-medium">التصنيف</th>
                         <th className="text-center p-3 font-medium">الكمية المصروفة</th>
                         <th className="text-center p-3 font-medium">المعاملات</th>
-                        <th className="text-center p-3 font-medium">المتوسط</th>
-                        <th className="text-center p-3 font-medium">الفترة</th>
+                        <th className="text-center p-3 font-medium">التشغيلات</th>
+                        <th className="text-center p-3 font-medium">المخزون</th>
                         <th className="text-center p-3 font-medium">آخر صرف</th>
-                        <th className="text-center p-3 font-medium">منذ كم يوم</th>
+                        <th className="text-center p-3 font-medium">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -760,16 +875,31 @@ export function MovementPage({ system }: MovementPageProps) {
                             {item.description || '-'}
                           </td>
                           <td className="p-3 text-center">
-                            <Badge 
-                              style={{ 
-                                backgroundColor: MOVEMENT_COLORS[item.movementClass as keyof typeof MOVEMENT_COLORS] || '#999',
-                                color: 'white'
-                              }}
-                              className="gap-1"
-                            >
-                              {getMovementIcon(item.movementClass)}
-                              {item.movementClass}
-                            </Badge>
+                            {editingItem === item.genericItemNumber ? (
+                              <select
+                                value={editClass}
+                                onChange={(e) => setEditClass(e.target.value)}
+                                className="border rounded px-2 py-1 text-sm"
+                              >
+                                <option value="سريع جداً">سريع جداً</option>
+                                <option value="سريع">سريع</option>
+                                <option value="متوسط">متوسط</option>
+                                <option value="بطيء">بطيء</option>
+                                <option value="عديم الحركة">عديم الحركة</option>
+                              </select>
+                            ) : (
+                              <Badge 
+                                style={{ 
+                                  backgroundColor: MOVEMENT_COLORS[item.effectiveMovementClass as keyof typeof MOVEMENT_COLORS] || '#999',
+                                  color: 'white'
+                                }}
+                                className="gap-1"
+                              >
+                                {getMovementIcon(item.effectiveMovementClass)}
+                                {item.effectiveMovementClass}
+                                {item.isUserClassified && <span title="تصنيف يدوي">*</span>}
+                              </Badge>
+                            )}
                           </td>
                           <td className="p-3 text-center font-medium">
                             {item.totalQtyDispatched.toLocaleString('ar-SA')}
@@ -777,11 +907,20 @@ export function MovementPage({ system }: MovementPageProps) {
                           <td className="p-3 text-center">
                             {item.transactionCount.toLocaleString('ar-SA')}
                           </td>
-                          <td className="p-3 text-center text-gray-600">
-                            {item.avgQtyPerTransaction.toFixed(0)}
+                          <td className="p-3 text-center">
+                            <span className="inline-flex items-center gap-1">
+                              <span title="عدد التشغيلات">{item.batchCount}</span>
+                              {item.uniqueExpiryDates > 0 && (
+                                <span className="text-gray-400 text-xs" title="تواريخ انتهاء مختلفة">
+                                  ({item.uniqueExpiryDates})
+                                </span>
+                              )}
+                            </span>
                           </td>
-                          <td className="p-3 text-center text-gray-600">
-                            {item.daysSpan} يوم
+                          <td className="p-3 text-center">
+                            <span className={`${item.currentStock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              {item.currentStock.toLocaleString('ar-SA')}
+                            </span>
                           </td>
                           <td className="p-3 text-center text-gray-600 text-xs">
                             {item.lastDispatchDate
@@ -790,15 +929,35 @@ export function MovementPage({ system }: MovementPageProps) {
                             }
                           </td>
                           <td className="p-3 text-center">
-                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                              item.daysSinceLastDispatch === null ? 'bg-gray-100 text-gray-500' :
-                              item.daysSinceLastDispatch >= 180 ? 'bg-red-100 text-red-700' :
-                              item.daysSinceLastDispatch >= 90 ? 'bg-orange-100 text-orange-700' :
-                              item.daysSinceLastDispatch >= 30 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-green-100 text-green-700'
-                            }`}>
-                              {item.daysSinceLastDispatch !== null ? item.daysSinceLastDispatch + ' يوم' : '-'}
-                            </span>
+                            {editingItem === item.genericItemNumber ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleSaveClassification(item.genericItemNumber)}
+                                  className="text-green-600"
+                                >
+                                  <Save className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={cancelEditing}
+                                  className="text-red-600"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEditing(item)}
+                                title="تعديل التصنيف"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -834,11 +993,6 @@ export function MovementPage({ system }: MovementPageProps) {
             </CardContent>
           </Card>
         </>
-      )}
-
-      {/* تبويب اقتراحات التغذية */}
-      {activeTab === 'topup' && (
-        <TopUpSuggestions system={system} />
       )}
 
       {/* تبويب الإعدادات */}

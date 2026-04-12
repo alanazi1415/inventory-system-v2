@@ -75,8 +75,7 @@ export async function GET() {
         canViewHoz: true,
         canViewMwsal: true,
         canEditMovementSettings: true,
-        canViewTopUp: true,
-        canCalculateTopUp: true,
+        canClassifyMovement: true,
         createdAt: true,
         updatedAt: true
       },
@@ -141,8 +140,7 @@ export async function POST(request: NextRequest) {
         canViewHoz: data.canViewHoz ?? true,
         canViewMwsal: data.canViewMwsal ?? true,
         canEditMovementSettings: data.canEditMovementSettings ?? false,
-        canViewTopUp: data.canViewTopUp ?? true,
-        canCalculateTopUp: data.canCalculateTopUp ?? false
+        canClassifyMovement: data.canClassifyMovement ?? false
       }
     })
     
@@ -187,8 +185,7 @@ export async function PUT(request: NextRequest) {
       canViewHoz: data.canViewHoz,
       canViewMwsal: data.canViewMwsal,
       canEditMovementSettings: data.canEditMovementSettings,
-      canViewTopUp: data.canViewTopUp,
-      canCalculateTopUp: data.canCalculateTopUp
+      canClassifyMovement: data.canClassifyMovement
     }
     
     // تحديث كلمة المرور فقط إذا تم توفيرها

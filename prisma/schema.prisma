@@ -147,8 +147,7 @@ model User {
   canViewMwsal        Boolean @default(true)
   // صلاحيات تحليل الحركة
   canEditMovementSettings  Boolean @default(false) // تعديل إعدادات التصنيف
-  canViewTopUp             Boolean @default(true)  // عرض اقتراحات التغذية
-  canCalculateTopUp        Boolean @default(false) // حساب اقتراحات التغذية
+  canClassifyMovement      Boolean @default(false) // التصنيف اليدوي للبنود
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   sessions          UserSession[]
@@ -168,7 +167,7 @@ model UserSession {
   @@index([userId])
 }
 
-// نموذج حركة البنود
+// نموذج حركة البنود (محسن)
 model ItemMovement {
   id                String   @id @default(cuid())
   genericItemNumber String   // رقم البند الرئيسي
@@ -185,20 +184,44 @@ model ItemMovement {
   lastDispatchDate   DateTime? // آخر صرف
   daysSpan           Int       @default(0) // عدد الأيام بين أول وآخر صرف
   
-  // التصنيف
-  movementClass      String   @default("غير مصنف") // سريع جداً، سريع، متوسط، بطيء، عديم الحركة
+  // التصنيف التلقائي
+  autoMovementClass  String   @default("غير مصنف") // التصنيف التلقائي
   movementScore      Float    @default(0) // درجة الحركة (للترتيب)
   
-  // معلومات إضافية
+  // التصنيف اليدوي (للمستخدم)
+  userMovementClass  String?  // التصنيف اليدوي من المستخدم
+  classifiedBy       String?  // من قام بالتصنيف
+  classifiedAt       DateTime? // تاريخ التصنيف اليدوي
+  notes              String?  // ملاحظات المستخدم
+  
+  // معلومات إضافية للتجميع الذكي
+  batchCount         Int      @default(0)  // عدد التشغيلات (Batches)
+  uniqueExpiryDates  Int      @default(0)  // عدد تواريخ الانتهاء المختلفة
+  uniqueOrders       Int      @default(0)  // عدد أوامر البيع الفريدة
+  
+  // معلومات المخزون الحالي
+  currentStock       Float    @default(0)  // الكمية الحالية في المخزون
+  availableStock     Float    @default(0)  // الكمية المتاحة
+  
+  // الفترة الزمنية للتحليل
+  analysisPeriodDays Int      @default(90) // عدد أيام فترة التحليل
+  analysisDateFrom   DateTime? // بداية فترة التحليل
+  analysisDateTo     DateTime? // نهاية فترة التحليل
+  
+  // معلومات التحليل
   lastAnalysisDate   DateTime @default(now()) // تاريخ آخر تحليل
   reportSource       String?  // مصدر التقرير
+  
+  // حالة التزامن مع المخزون
+  syncedFromInventory Boolean @default(false) // هل تمت المزامنة من المخزون
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@index([genericItemNumber])
   @@index([system])
-  @@index([movementClass])
+  @@index([autoMovementClass])
+  @@index([userMovementClass])
   @@unique([genericItemNumber, system])
 }
 
@@ -211,6 +234,7 @@ model MovementReportLog {
   itemsCount   Int      @default(0)
   dateFrom     DateTime?
   dateTo       DateTime?
+  analysisPeriodDays Int @default(90) // فترة التحليل المستخدمة
   createdAt    DateTime @default(now())
 }
 
@@ -234,43 +258,25 @@ model MovementThresholds {
   // حدود "بطيء"
   slowMinTransactions     Int    @default(3)
   
-  // إعدادات TOP UP
-  topUpDaysToAnalyze      Int    @default(90)   // عدد الأيام للتحليل
-  topUpSafetyFactor       Float  @default(1.5)  // معامل الأمان
-  topUpMinStockDays       Int    @default(30)   // الحد الأدنى لأيام المخزون
+  // إعدادات فترة التحليل
+  defaultAnalysisPeriod   Int    @default(90) // الفترة الافتراضية بالأيام
   
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 }
 
-// اقتراحات تغذية المستودع (TOP UP)
-model TopUpSuggestion {
-  id                  String   @id @default(cuid())
-  genericItemNumber   String
-  description         String?
-  system              String
-  
-  // المخزون الحالي
-  currentStock        Float    @default(0)
-  availableStock      Float    @default(0)
-  
-  // إحصائيات الصرف
-  avgDailyConsumption Float    @default(0)  // متوسط الاستهلاك اليومي
-  daysOfStock         Float    @default(0)  // أيام المخزون المتبقية
-  
-  // الاقتراح
-  suggestedQty        Float    @default(0)  // الكمية المقترحة للتغذية
-  urgencyLevel        String   @default("متوسط") // حرج، عالي، متوسط، منخفض
-  
-  // الحسابات
-  calculationDate     DateTime @default(now())
-  analysisPeriodDays  Int      @default(90)
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+// سجل تغييرات التصنيف
+model ClassificationLog {
+  id                String   @id @default(cuid())
+  itemNumber        String   // رقم البند
+  system            String   // المستودع
+  oldClass          String?  // التصنيف القديم
+  newClass          String   // التصنيف الجديد
+  changedBy         String   // من قام بالتغيير
+  reason            String?  // سبب التغيير
+  createdAt         DateTime @default(now())
 
-  @@index([genericItemNumber])
+  @@index([itemNumber])
   @@index([system])
-  @@index([urgencyLevel])
-  @@unique([genericItemNumber, system])
+  @@index([createdAt])
 }

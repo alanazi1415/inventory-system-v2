@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const results: any = {}
 
-    // 1. إنشاء جدول MovementThresholds
+    // 1. إنشاء/تحديث جدول MovementThresholds
     try {
       await db.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "MovementThresholds" (
@@ -20,9 +20,7 @@ export async function GET() {
           "mediumMinTransactions" INTEGER NOT NULL DEFAULT 10,
           "mediumMinQty" INTEGER NOT NULL DEFAULT 500,
           "slowMinTransactions" INTEGER NOT NULL DEFAULT 3,
-          "topUpDaysToAnalyze" INTEGER NOT NULL DEFAULT 90,
-          "topUpSafetyFactor" DOUBLE PRECISION NOT NULL DEFAULT 1.5,
-          "topUpMinStockDays" INTEGER NOT NULL DEFAULT 30,
+          "defaultAnalysisPeriod" INTEGER NOT NULL DEFAULT 90,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "MovementThresholds_pkey" PRIMARY KEY ("id")
@@ -36,45 +34,73 @@ export async function GET() {
       results.movementThresholds = { error: e.message }
     }
 
-    // 2. إنشاء جدول TopUpSuggestion
+    // 2. إنشاء جدول ClassificationLog
     try {
       await db.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "TopUpSuggestion" (
+        CREATE TABLE IF NOT EXISTS "ClassificationLog" (
           "id" TEXT NOT NULL,
-          "genericItemNumber" TEXT NOT NULL,
-          "description" TEXT,
+          "itemNumber" TEXT NOT NULL,
           "system" TEXT NOT NULL,
-          "currentStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
-          "availableStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
-          "avgDailyConsumption" DOUBLE PRECISION NOT NULL DEFAULT 0,
-          "daysOfStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
-          "suggestedQty" DOUBLE PRECISION NOT NULL DEFAULT 0,
-          "urgencyLevel" TEXT NOT NULL DEFAULT 'متوسط',
-          "calculationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          "analysisPeriodDays" INTEGER NOT NULL DEFAULT 90,
+          "oldClass" TEXT,
+          "newClass" TEXT NOT NULL,
+          "changedBy" TEXT NOT NULL,
+          "reason" TEXT,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT "TopUpSuggestion_pkey" PRIMARY KEY ("id")
+          CONSTRAINT "ClassificationLog_pkey" PRIMARY KEY ("id")
         )
       `)
       await db.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "TopUpSuggestion_genericItemNumber_idx" ON "TopUpSuggestion"("genericItemNumber")
+        CREATE INDEX IF NOT EXISTS "ClassificationLog_itemNumber_idx" ON "ClassificationLog"("itemNumber")
       `)
       await db.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "TopUpSuggestion_system_idx" ON "TopUpSuggestion"("system")
+        CREATE INDEX IF NOT EXISTS "ClassificationLog_system_idx" ON "ClassificationLog"("system")
       `)
       await db.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "TopUpSuggestion_urgencyLevel_idx" ON "TopUpSuggestion"("urgencyLevel")
+        CREATE INDEX IF NOT EXISTS "ClassificationLog_createdAt_idx" ON "ClassificationLog"("createdAt")
       `)
-      await db.$executeRawUnsafe(`
-        CREATE UNIQUE INDEX IF NOT EXISTS "TopUpSuggestion_genericItemNumber_system_key" ON "TopUpSuggestion"("genericItemNumber", "system")
-      `)
-      results.topUpSuggestion = 'created successfully'
+      results.classificationLog = 'created successfully'
     } catch (e: any) {
-      results.topUpSuggestion = { error: e.message }
+      results.classificationLog = { error: e.message }
     }
 
-    // 3. إنشاء إعدادات افتراضية للمستودعين
+    // 3. إضافة الأعمدة الجديدة لجدول ItemMovement
+    const newColumns = [
+      { name: 'autoMovementClass', type: 'TEXT DEFAULT \'غير مصنف\'' },
+      { name: 'userMovementClass', type: 'TEXT' },
+      { name: 'classifiedBy', type: 'TEXT' },
+      { name: 'classifiedAt', type: 'TIMESTAMP(3)' },
+      { name: 'notes', type: 'TEXT' },
+      { name: 'batchCount', type: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'uniqueExpiryDates', type: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'uniqueOrders', type: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'currentStock', type: 'DOUBLE PRECISION NOT NULL DEFAULT 0' },
+      { name: 'availableStock', type: 'DOUBLE PRECISION NOT NULL DEFAULT 0' },
+      { name: 'analysisPeriodDays', type: 'INTEGER NOT NULL DEFAULT 90' },
+      { name: 'analysisDateFrom', type: 'TIMESTAMP(3)' },
+      { name: 'analysisDateTo', type: 'TIMESTAMP(3)' },
+      { name: 'syncedFromInventory', type: 'BOOLEAN NOT NULL DEFAULT false' },
+    ]
+
+    results.newColumns = {}
+    for (const col of newColumns) {
+      try {
+        await db.$executeRawUnsafe(`
+          SELECT ${col.name} FROM "ItemMovement" LIMIT 1
+        `)
+        results.newColumns[col.name] = 'already exists'
+      } catch {
+        try {
+          await db.$executeRawUnsafe(`
+            ALTER TABLE "ItemMovement" ADD COLUMN "${col.name}" ${col.type}
+          `)
+          results.newColumns[col.name] = 'added successfully'
+        } catch (e: any) {
+          results.newColumns[col.name] = { error: e.message }
+        }
+      }
+    }
+
+    // 4. إنشاء إعدادات افتراضية للمستودعين
     try {
       await db.$executeRawUnsafe(`
         INSERT INTO "MovementThresholds" (id, system, "createdAt", "updatedAt")
@@ -91,20 +117,37 @@ export async function GET() {
       results.defaultThresholds = { error: e.message }
     }
 
-    // 4. التحقق من الجداول بعد الإنشاء
+    // 5. إضافة صلاحية التصنيف اليدوي للمستخدمين
     try {
-      const thresholdsCheck = await db.$queryRaw`
+      await db.$executeRawUnsafe(`
+        SELECT "canClassifyMovement" FROM "User" LIMIT 1
+      `)
+      results.userPermission = 'already exists'
+    } catch {
+      try {
+        await db.$executeRawUnsafe(`
+          ALTER TABLE "User" ADD COLUMN "canClassifyMovement" BOOLEAN NOT NULL DEFAULT false
+        `)
+        results.userPermission = 'added successfully'
+      } catch (e: any) {
+        results.userPermission = { error: e.message }
+      }
+    }
+
+    // 6. التحقق من الجداول بعد الإنشاء
+    try {
+      const tablesCheck = await db.$queryRaw`
         SELECT table_name FROM information_schema.tables
-        WHERE table_name IN ('MovementThresholds', 'TopUpSuggestion')
+        WHERE table_name IN ('MovementThresholds', 'ClassificationLog', 'ItemMovement')
       `
-      results.tablesCheck = thresholdsCheck
+      results.tablesCheck = tablesCheck
     } catch (e: any) {
       results.tablesCheck = { error: e.message }
     }
 
     return NextResponse.json({
       status: 'success',
-      message: 'تم إنشاء الجداول الناقصة',
+      message: 'تم إنشاء/تحديث الجداول الناجحة',
       results
     })
   } catch (error: any) {
