@@ -407,8 +407,8 @@ export function MovementPage({ system }: MovementPageProps) {
         uniqueOrders: data.orders.size
       }))
 
-      // إرسال على دفعات
-      const batchSize = 500
+      // إرسال على دفعات صغيرة لتجنب timeout
+      const batchSize = 200
       const totalBatches = Math.ceil(aggregatedItems.length / batchSize)
       let totalSaved = 0
       let batchErrors: string[] = []
@@ -417,7 +417,7 @@ export function MovementPage({ system }: MovementPageProps) {
         const batchIndex = Math.floor(i / batchSize) + 1
         const batch = aggregatedItems.slice(i, i + batchSize)
         
-        const percent = 65 + Math.floor((batchIndex / totalBatches) * 25)
+        const percent = 60 + Math.floor((batchIndex / totalBatches) * 40)
         setUploadPercent(percent)
         setUploadProgress(`جاري حفظ الدفعة ${batchIndex} من ${totalBatches}... (${percent}%)`)
 
@@ -460,21 +460,12 @@ export function MovementPage({ system }: MovementPageProps) {
         throw new Error(batchErrors[0])
       }
 
-      // مزامنة البنود من المخزون
-      setUploadProgress('جاري مزامنة البنود من المخزون...')
-      setUploadPercent(92)
-      try {
-        await fetch(`/api/movement?system=${system}&sync=true&periodDays=${selectedPeriod}`)
-      } catch (e) {
-        console.error('Sync error:', e)
-      }
-
       setUploadPercent(100)
       setUploadProgress('اكتمل!')
       
       setUploadMessage({ 
         type: 'success', 
-        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n📦 تم حفظ ${totalSaved.toLocaleString('ar-SA')} بند\n📦 تمت مزامنة البنود من المخزون` 
+        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n📦 تم حفظ ${totalSaved.toLocaleString('ar-SA')} بند` 
       })
       fetchData()
     } catch (error: any) {

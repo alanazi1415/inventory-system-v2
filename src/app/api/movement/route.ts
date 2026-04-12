@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300 // 5 minutes max
 
 // التحقق من صلاحية الأدمن
 async function checkAdminAuth() {
@@ -115,154 +116,6 @@ function classifyMovement(
   }
 }
 
-// مزامنة البنود من المخزون
-async function syncInventoryToMovement(system: string, analysisPeriodDays: number = 90) {
-  console.log(`Syncing inventory items to movement for system: ${system}`)
-  
-  // جلب جميع أرقام البنود من المخزون
-  const inventoryItems = await db.inventoryItem.findMany({
-    where: { system },
-    select: {
-      genericItemNumber: true,
-      genericItemDescription: true,
-      customerItemNumber: true,
-      tradeItemNumber: true,
-      totalQty: true,
-      availableQty: true
-    }
-  })
-  
-  console.log(`Found ${inventoryItems.length} items in inventory for system ${system}`)
-  
-  // جلب جميع أرقام البنود الموجودة في تحليل الحركة
-  const existingMovements = await db.itemMovement.findMany({
-    where: { system },
-    select: { genericItemNumber: true }
-  })
-  const existingNumbers = new Set(existingMovements.map(m => m.genericItemNumber))
-  
-  // خريطة لجميع أرقام البنود في المخزون
-  const inventoryNumbersMap = new Map<string, { description: string | null; totalQty: number; availableQty: number }>()
-  
-  for (const item of inventoryItems) {
-    const numbers = [
-      item.genericItemNumber,
-      item.customerItemNumber,
-      item.tradeItemNumber
-    ].filter((n): n is string => Boolean(n && n.trim()))
-    
-    for (const num of numbers) {
-      if (!inventoryNumbersMap.has(num)) {
-        inventoryNumbersMap.set(num, {
-          description: item.genericItemDescription,
-          totalQty: item.totalQty,
-          availableQty: item.availableQty
-        })
-      }
-    }
-  }
-  
-  console.log(`Found ${inventoryNumbersMap.size} unique item numbers in inventory`)
-  
-  // البنود التي ليست في تحليل الحركة
-  const itemsToAdd: Array<{ itemNumber: string; description: string | null; totalQty: number; availableQty: number }> = []
-  
-  for (const [itemNumber, data] of inventoryNumbersMap) {
-    if (!existingNumbers.has(itemNumber)) {
-      itemsToAdd.push({
-        itemNumber,
-        description: data.description,
-        totalQty: data.totalQty,
-        availableQty: data.availableQty
-      })
-    }
-  }
-  
-  console.log(`Items without movement to add: ${itemsToAdd.length}`)
-  
-  const thresholds = await getThresholds(system)
-  const { movementClass, score } = classifyMovement(0, 0, thresholds)
-  
-  // إضافة البنود بدون حركة
-  let addedCount = 0
-  let updatedCount = 0
-  
-  for (const item of itemsToAdd) {
-    try {
-      await db.itemMovement.create({
-        data: {
-          genericItemNumber: item.itemNumber,
-          description: item.description,
-          system,
-          totalQtyDispatched: 0,
-          transactionCount: 0,
-          avgQtyPerTransaction: 0,
-          autoMovementClass: movementClass,
-          movementScore: score,
-          currentStock: item.totalQty,
-          availableStock: item.availableQty,
-          analysisPeriodDays: thresholds.defaultAnalysisPeriod,
-          reportSource: 'مزامنة تلقائية من المخزون',
-          syncedFromInventory: true
-        }
-      })
-      addedCount++
-    } catch (e: any) {
-      // قد يكون موجوداً بالفعل - تحديثه بدلاً من ذلك
-      try {
-        await db.itemMovement.update({
-          where: {
-            genericItemNumber_system: {
-              genericItemNumber: item.itemNumber,
-              system
-            }
-          },
-          data: {
-            currentStock: item.totalQty,
-            availableStock: item.availableQty,
-            syncedFromInventory: true
-          }
-        })
-        updatedCount++
-      } catch (updateError) {
-        // تجاهل
-      }
-    }
-  }
-  
-  // تحديث المخزون الحالي للبنود الموجودة
-  for (const [itemNumber, data] of inventoryNumbersMap) {
-    if (existingNumbers.has(itemNumber)) {
-      try {
-        await db.itemMovement.update({
-          where: {
-            genericItemNumber_system: {
-              genericItemNumber: itemNumber,
-              system
-            }
-          },
-          data: {
-            currentStock: data.totalQty,
-            availableStock: data.availableQty,
-            syncedFromInventory: true
-          }
-        })
-        updatedCount++
-      } catch (e) {
-        // تجاهل
-      }
-    }
-  }
-  
-  return { 
-    totalInventoryItems: inventoryItems.length,
-    uniqueNumbers: inventoryNumbersMap.size,
-    added: addedCount, 
-    updated: updatedCount,
-    withoutMovement: itemsToAdd.length
-  }
-}
-
 // معالجة طلب POST (رفع التقرير أو التصنيف اليدوي أو المزامنة)
 export async function POST(request: NextRequest) {
   try {
@@ -276,12 +129,65 @@ export async function POST(request: NextRequest) {
     // طلب مزامنة المخزون
     if (body.syncInventory) {
       const system = body.system || 'mwsal'
-      const analysisPeriodDays = body.analysisPeriodDays || 90
-      const result = await syncInventoryToMovement(system, analysisPeriodDays)
+      
+      // جلب جميع أرقام البنود من المخزون
+      const inventoryItems = await db.inventoryItem.findMany({
+        where: { system },
+        select: {
+          genericItemNumber: true,
+          genericItemDescription: true,
+          totalQty: true,
+          availableQty: true
+        }
+      })
+      
+      // جلب البنود الموجودة
+      const existingMovements = await db.itemMovement.findMany({
+        where: { system },
+        select: { genericItemNumber: true }
+      })
+      const existingNumbers = new Set(existingMovements.map(m => m.genericItemNumber))
+      
+      const thresholds = await getThresholds(system)
+      const { movementClass, score } = classifyMovement(0, 0, thresholds)
+      
+      let addedCount = 0
+      
+      // إضافة البنود غير الموجودة
+      for (const item of inventoryItems) {
+        if (item.genericItemNumber && !existingNumbers.has(item.genericItemNumber)) {
+          try {
+            await db.itemMovement.create({
+              data: {
+                genericItemNumber: item.genericItemNumber,
+                description: item.genericItemDescription,
+                system,
+                totalQtyDispatched: 0,
+                transactionCount: 0,
+                avgQtyPerTransaction: 0,
+                autoMovementClass: movementClass,
+                movementScore: score,
+                currentStock: item.totalQty,
+                availableStock: item.availableQty,
+                analysisPeriodDays: thresholds.defaultAnalysisPeriod,
+                reportSource: 'مزامنة تلقائية من المخزون',
+                syncedFromInventory: true
+              }
+            })
+            addedCount++
+          } catch {
+            // تجاهل الأخطاء (البند موجود مسبقاً)
+          }
+        }
+      }
+      
       return NextResponse.json({
         success: true,
         message: 'تمت المزامنة بنجاح',
-        stats: result
+        stats: {
+          totalInventoryItems: inventoryItems.length,
+          added: addedCount
+        }
       })
     }
     
@@ -312,16 +218,20 @@ export async function POST(request: NextRequest) {
       }
       
       // تسجيل التغيير
-      await db.classificationLog.create({
-        data: {
-          itemNumber,
-          system,
-          oldClass: currentItem.userMovementClass || currentItem.autoMovementClass,
-          newClass,
-          changedBy: access.username,
-          reason: reason || null
-        }
-      })
+      try {
+        await db.classificationLog.create({
+          data: {
+            itemNumber,
+            system,
+            oldClass: currentItem.userMovementClass || currentItem.autoMovementClass,
+            newClass,
+            changedBy: access.username,
+            reason: reason || null
+          }
+        })
+      } catch {
+        // تجاهل إذا فشل تسجيل السجل
+      }
       
       // تحديث التصنيف
       await db.itemMovement.update({
@@ -345,119 +255,105 @@ export async function POST(request: NextRequest) {
       })
     }
     
-    // رفع تقرير الحركة
+    // رفع تقرير الحركة - محسن للسرعة
     const { items, system, fileName, totalRecords, dateFrom, dateTo, analysisPeriodDays } = body
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'لا توجد بيانات' }, { status: 400 })
     }
     
-    console.log(`Processing ${items.length} aggregated items for system: ${system}`)
+    console.log(`Processing ${items.length} items for system: ${system}`)
     
     const thresholds = await getThresholds(system)
     const periodDays = analysisPeriodDays || thresholds.defaultAnalysisPeriod
     
-    // حفظ في قاعدة البيانات
-    let savedCount = 0
-    
-    for (const item of items) {
-      const genericItemNumber = item.genericItemNumber
+    // تحضير البيانات للحفظ
+    const itemsToSave = items.map((item: any) => {
       const totalQty = item.totalQty || 0
       const transactionCount = item.transactionCount || 0
-      const description = item.description || ''
-      const batchCount = item.batchCount || 0
-      const uniqueExpiryDates = item.uniqueExpiryDates || 0
-      const uniqueOrders = item.uniqueOrders || 0
-      
       const { movementClass, score } = classifyMovement(transactionCount, totalQty, thresholds)
       
-      // حساب الفترة الزمنية
-      let daysSpan = 0
-      let firstDate: Date | null = null
-      let lastDate: Date | null = null
-      
-      const dates = item.dates || []
-      if (dates.length > 0) {
-        const sortedDates = dates.map((d: string) => new Date(d)).sort((a: Date, b: Date) => a.getTime() - b.getTime())
-        firstDate = sortedDates[0]
-        lastDate = sortedDates[sortedDates.length - 1]
-        daysSpan = Math.ceil(((lastDate?.getTime() ?? 0) - (firstDate?.getTime() ?? 0)) / (1000 * 60 * 60 * 24))
+      return {
+        genericItemNumber: item.genericItemNumber,
+        description: item.description || '',
+        system,
+        totalQtyDispatched: totalQty,
+        transactionCount,
+        avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
+        autoMovementClass: movementClass,
+        movementScore: score,
+        batchCount: item.batchCount || 0,
+        uniqueExpiryDates: item.uniqueExpiryDates || 0,
+        uniqueOrders: item.uniqueOrders || 0,
+        reportSource: fileName,
+        analysisPeriodDays: periodDays,
+        analysisDateFrom: dateFrom ? new Date(dateFrom) : null,
+        analysisDateTo: dateTo ? new Date(dateTo) : null
       }
+    })
+    
+    // حفظ باستخدام $transaction للسرعة
+    let savedCount = 0
+    
+    // حفظ في دفعات صغيرة
+    const batchSize = 100
+    for (let i = 0; i < itemsToSave.length; i += batchSize) {
+      const batch = itemsToSave.slice(i, i + batchSize)
       
-      try {
-        await db.itemMovement.upsert({
+      const queries = batch.map(item => 
+        db.itemMovement.upsert({
           where: {
             genericItemNumber_system: {
-              genericItemNumber,
-              system
+              genericItemNumber: item.genericItemNumber,
+              system: item.system
             }
           },
           update: {
-            description,
-            totalQtyDispatched: totalQty,
-            transactionCount,
-            avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
-            firstDispatchDate: firstDate,
-            lastDispatchDate: lastDate,
-            daysSpan,
-            autoMovementClass: movementClass,
-            movementScore: score,
-            batchCount,
-            uniqueExpiryDates,
-            uniqueOrders,
+            description: item.description,
+            totalQtyDispatched: item.totalQtyDispatched,
+            transactionCount: item.transactionCount,
+            avgQtyPerTransaction: item.avgQtyPerTransaction,
+            autoMovementClass: item.autoMovementClass,
+            movementScore: item.movementScore,
+            batchCount: item.batchCount,
+            uniqueExpiryDates: item.uniqueExpiryDates,
+            uniqueOrders: item.uniqueOrders,
             lastAnalysisDate: new Date(),
-            reportSource: fileName,
-            analysisPeriodDays: periodDays,
-            analysisDateFrom: dateFrom ? new Date(dateFrom) : null,
-            analysisDateTo: dateTo ? new Date(dateTo) : null,
+            reportSource: item.reportSource,
+            analysisPeriodDays: item.analysisPeriodDays,
+            analysisDateFrom: item.analysisDateFrom,
+            analysisDateTo: item.analysisDateTo,
             syncedFromInventory: false
           },
-          create: {
-            genericItemNumber,
-            description,
-            system,
-            totalQtyDispatched: totalQty,
-            transactionCount,
-            avgQtyPerTransaction: transactionCount > 0 ? totalQty / transactionCount : 0,
-            firstDispatchDate: firstDate,
-            lastDispatchDate: lastDate,
-            daysSpan,
-            autoMovementClass: movementClass,
-            movementScore: score,
-            batchCount,
-            uniqueExpiryDates,
-            uniqueOrders,
-            reportSource: fileName,
-            analysisPeriodDays: periodDays,
-            analysisDateFrom: dateFrom ? new Date(dateFrom) : null,
-            analysisDateTo: dateTo ? new Date(dateTo) : null
-          }
+          create: item
         })
-        savedCount++
+      )
+      
+      try {
+        await db.$transaction(queries)
+        savedCount += batch.length
       } catch (e) {
-        console.error('Error saving item:', genericItemNumber, e)
+        console.error('Batch error:', e)
+        // محاولة حفظ بشكل فردي
+        for (const item of batch) {
+          try {
+            await db.itemMovement.upsert({
+              where: {
+                genericItemNumber_system: {
+                  genericItemNumber: item.genericItemNumber,
+                  system: item.system
+                }
+              },
+              update: item,
+              create: item
+            })
+            savedCount++
+          } catch {
+            // تجاهل
+          }
+        }
       }
     }
-    
-    // تسجيل التقرير
-    try {
-      await db.movementReportLog.create({
-        data: {
-          fileName: fileName || 'unknown',
-          system,
-          recordsCount: totalRecords || 0,
-          itemsCount: items.length,
-          dateFrom: dateFrom ? new Date(dateFrom) : null,
-          dateTo: dateTo ? new Date(dateTo) : null,
-          analysisPeriodDays: periodDays
-        }
-      })
-    } catch (e) {
-      console.error('Error logging report:', e)
-    }
-    
-    // مزامنة البنود من المخزون بعد الرفع
-    const syncResult = await syncInventoryToMovement(system, periodDays)
     
     return NextResponse.json({
       success: true,
@@ -465,8 +361,7 @@ export async function POST(request: NextRequest) {
       stats: {
         totalRecords: totalRecords || 0,
         uniqueItems: items.length,
-        savedItems: savedCount,
-        syncedFromInventory: syncResult
+        savedItems: savedCount
       }
     })
     
@@ -488,18 +383,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const limit = parseInt(searchParams.get('limit') || '100')
     const offset = parseInt(searchParams.get('offset') || '0')
-    const sync = searchParams.get('sync') === 'true'
     const periodDays = parseInt(searchParams.get('periodDays') || '0')
-
-    // إذا كان طلب مزامنة
-    if (sync) {
-      const result = await syncInventoryToMovement(system, periodDays || 90)
-      return NextResponse.json({
-        success: true,
-        message: 'تمت المزامنة بنجاح',
-        stats: result
-      })
-    }
 
     // بناء شروط البحث
     const allClasses = searchParams.getAll('class').filter(c => c && c !== 'all')
@@ -507,7 +391,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = { system }
 
-    // فلترة حسب التصنيف (يدوي أو تلقائي)
+    // فلترة حسب التصنيف
     if (allClasses.length > 0) {
       if (useUserClass) {
         where.OR = allClasses.map(cls => [
@@ -575,7 +459,6 @@ export async function GET(request: NextRequest) {
         if (daysSinceLastDispatch < 0) daysSinceLastDispatch = 0
       }
       
-      // التصنيف الفعال (يدوي إن وجد، وإلا تلقائي)
       const effectiveClass = item.userMovementClass || item.autoMovementClass
       
       return {
@@ -643,18 +526,22 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'البند غير موجود' }, { status: 404 })
     }
     
-    // تسجيل التغيير إذا تم تغيير التصنيف
+    // تسجيل التغيير
     if (userMovementClass && userMovementClass !== currentItem.userMovementClass) {
-      await db.classificationLog.create({
-        data: {
-          itemNumber,
-          system,
-          oldClass: currentItem.userMovementClass || currentItem.autoMovementClass,
-          newClass: userMovementClass,
-          changedBy: access.username,
-          reason: notes || null
-        }
-      })
+      try {
+        await db.classificationLog.create({
+          data: {
+            itemNumber,
+            system,
+            oldClass: currentItem.userMovementClass || currentItem.autoMovementClass,
+            newClass: userMovementClass,
+            changedBy: access.username,
+            reason: notes || null
+          }
+        })
+      } catch {
+        // تجاهل
+      }
     }
     
     const updated = await db.itemMovement.update({
