@@ -140,6 +140,7 @@ export function MovementPage({ system }: MovementPageProps) {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
+  const [uploadPercent, setUploadPercent] = useState(0)
   const [search, setSearch] = useState('')
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [selectedPeriod, setSelectedPeriod] = useState(90)
@@ -214,6 +215,13 @@ export function MovementPage({ system }: MovementPageProps) {
         })
       })
 
+      // التحقق من أن الـ response هو JSON
+      const contentType = res.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text()
+        throw new Error(`خطأ في الخادم: ${text.substring(0, 100)}...`)
+      }
+
       const data = await res.json()
 
       if (data.success) {
@@ -230,7 +238,7 @@ export function MovementPage({ system }: MovementPageProps) {
         setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في المزامنة' })
       }
     } catch (error: any) {
-      setUploadMessage({ type: 'error', text: 'حدث خطأ في الاتصال' })
+      setUploadMessage({ type: 'error', text: `حدث خطأ: ${error.message}` })
     } finally {
       setSyncing(false)
     }
@@ -272,10 +280,12 @@ export function MovementPage({ system }: MovementPageProps) {
     setUploading(true)
     setUploadMessage(null)
     setUploadProgress('جاري قراءة الملف...')
+    setUploadPercent(0)
 
     try {
       const XLSX = await import('xlsx')
       setUploadProgress('جاري تحليل البيانات...')
+      setUploadPercent(5)
 
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array' })
@@ -286,6 +296,7 @@ export function MovementPage({ system }: MovementPageProps) {
       if (rawData.length < 2) {
         setUploadMessage({ type: 'error', text: 'الملف فارغ أو لا يحتوي بيانات' })
         setUploading(false)
+        setUploadPercent(0)
         return
       }
 
@@ -296,8 +307,12 @@ export function MovementPage({ system }: MovementPageProps) {
       if (colMap.itemNumberCol === -1 || colMap.qtyCol === -1) {
         setUploadMessage({ type: 'error', text: 'لم يتم العثور على أعمدة مطلوبة (رقم البند / الكمية)' })
         setUploading(false)
+        setUploadPercent(0)
         return
       }
+
+      setUploadProgress('جاري تجميع البيانات...')
+      setUploadPercent(10)
 
       // تجميع البيانات حسب رقم البند
       const movementMap = new Map<string, {
@@ -312,6 +327,7 @@ export function MovementPage({ system }: MovementPageProps) {
 
       let dateFrom: string | null = null
       let dateTo: string | null = null
+      const totalRows = rawData.length - 1
 
       for (let i = 1; i < rawData.length; i++) {
         const row = rawData[i]
@@ -368,12 +384,16 @@ export function MovementPage({ system }: MovementPageProps) {
 
         movementMap.set(itemNumber, existing)
 
+        // تحديث التقدم
         if (i % 5000 === 0) {
-          setUploadProgress(`جاري تحليل الصف ${i.toLocaleString('ar-SA')} من ${(rawData.length - 1).toLocaleString('ar-SA')}...`)
+          const percent = 10 + Math.floor((i / totalRows) * 50)
+          setUploadPercent(percent)
+          setUploadProgress(`جاري تحليل الصف ${i.toLocaleString('ar-SA')} من ${totalRows.toLocaleString('ar-SA')}... (${percent}%)`)
         }
       }
 
       setUploadProgress(`جاري إرسال البيانات (${movementMap.size.toLocaleString('ar-SA')} بند)...`)
+      setUploadPercent(65)
 
       // إرسال البيانات المجمعة
       const aggregatedItems = Array.from(movementMap.entries()).map(([itemNumber, data]) => ({
@@ -389,11 +409,18 @@ export function MovementPage({ system }: MovementPageProps) {
 
       // إرسال على دفعات
       const batchSize = 500
+      const totalBatches = Math.ceil(aggregatedItems.length / batchSize)
       let totalSaved = 0
+      let batchErrors: string[] = []
 
       for (let i = 0; i < aggregatedItems.length; i += batchSize) {
+        const batchIndex = Math.floor(i / batchSize) + 1
         const batch = aggregatedItems.slice(i, i + batchSize)
         
+        const percent = 65 + Math.floor((batchIndex / totalBatches) * 25)
+        setUploadPercent(percent)
+        setUploadProgress(`جاري حفظ الدفعة ${batchIndex} من ${totalBatches}... (${percent}%)`)
+
         const res = await fetch('/api/movement', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -409,28 +436,45 @@ export function MovementPage({ system }: MovementPageProps) {
           })
         })
 
+        // التحقق من أن الـ response هو JSON
+        const contentType = res.headers.get('content-type')
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await res.text()
+          throw new Error(`خطأ في الخادم: ${text.substring(0, 200)}...`)
+        }
+
         const data = await res.json()
 
         if (data.success) {
           totalSaved += (data.stats?.savedItems || batch.length)
         } else {
-          setUploadMessage({ type: 'error', text: data.error || 'حدث خطأ في التحليل' })
-          setUploading(false)
-          return
+          batchErrors.push(data.error || 'خطأ غير معروف')
+          // إذا كان الخطأ متعلق بقاعدة البيانات، نتوقف
+          if (data.error?.includes('column') || data.error?.includes('does not exist')) {
+            throw new Error(`⚠️ قاعدة البيانات تحتاج تحديث!\n\nيرجى تشغيل: /api/fix-all\n\nالتفاصيل: ${data.error}`)
+          }
         }
+      }
+
+      if (batchErrors.length > 0 && totalSaved === 0) {
+        throw new Error(batchErrors[0])
       }
 
       // مزامنة البنود من المخزون
       setUploadProgress('جاري مزامنة البنود من المخزون...')
+      setUploadPercent(92)
       try {
         await fetch(`/api/movement?system=${system}&sync=true&periodDays=${selectedPeriod}`)
       } catch (e) {
         console.error('Sync error:', e)
       }
+
+      setUploadPercent(100)
+      setUploadProgress('اكتمل!')
       
       setUploadMessage({ 
         type: 'success', 
-        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n📦 تمت مزامنة البنود من المخزون` 
+        text: `✅ تم تحليل ${movementMap.size.toLocaleString('ar-SA')} بند من ${(rawData.length - 1).toLocaleString('ar-SA')} سجل - ${systemName}\n📦 تم حفظ ${totalSaved.toLocaleString('ar-SA')} بند\n📦 تمت مزامنة البنود من المخزون` 
       })
       fetchData()
     } catch (error: any) {
@@ -438,6 +482,7 @@ export function MovementPage({ system }: MovementPageProps) {
       setUploadMessage({ type: 'error', text: `حدث خطأ: ${error.message || 'خطأ في الاتصال'}` })
     } finally {
       setUploading(false)
+      setUploadPercent(0)
       setUploadProgress('')
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
@@ -627,8 +672,21 @@ export function MovementPage({ system }: MovementPageProps) {
                   )}
                 </Button>
               </div>
-              {uploadProgress && (
-                <p className="text-xs text-blue-600">{uploadProgress}</p>
+              
+              {/* شريط التقدم */}
+              {uploading && (
+                <div className="w-full max-w-md">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-blue-600">{uploadProgress}</span>
+                    <span className="text-xs font-bold text-blue-600">{uploadPercent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-gradient-to-l from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadPercent}%` }}
+                    ></div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
