@@ -158,6 +158,7 @@ export function MovementPage({ system }: MovementPageProps) {
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [selectedPeriod, setSelectedPeriod] = useState(90)
   const [useSmartFilter, setUseSmartFilter] = useState(true) // فلترة ذكية للتاريخ
+  const [settingsLoaded, setSettingsLoaded] = useState(false) // هل تم تحميل الإعدادات
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -206,6 +207,24 @@ export function MovementPage({ system }: MovementPageProps) {
       fetchData()
     }
   }, [system, page, selectedClass, selectedPeriod, activeTab])
+
+  // تحميل الإعدادات المحفوظة عند فتح الصفحة
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch(`/api/movement/thresholds?system=${system}`)
+        const data = await res.json()
+        if (data.success && data.thresholds && data.thresholds.defaultAnalysisPeriod) {
+          setSelectedPeriod(data.thresholds.defaultAnalysisPeriod)
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error)
+      } finally {
+        setSettingsLoaded(true)
+      }
+    }
+    loadSettings()
+  }, [system])
 
   useEffect(() => {
     const timer = setTimeout(() => {
