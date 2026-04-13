@@ -20,9 +20,13 @@ interface MovementItem {
   firstDispatchDate: string | null
   lastDispatchDate: string | null
   daysSpan: number
-  movementClass: string
+  autoMovementClass: string
   movementScore: number
   daysSinceLastDispatch: number | null
+  analysisPeriodDays: number
+  currentStock: number
+  availableStock: number
+  syncedFromInventory: boolean
 }
 
 interface MovementCategoryPageProps {
@@ -181,15 +185,17 @@ export function MovementCategoryPage({
   }
 
   const exportToCSV = () => {
-    const headers = ['رقم البند', 'الوصف', 'التصنيف', 'الكمية المصروفة', 'عدد المعاملات', 'المتوسط', 'الفترة (يوم)', 'تاريخ أول صرف', 'تاريخ آخر صرف', 'منذ كم يوم (يوم)']
+    const headers = ['رقم البند', 'الوصف', 'التصنيف', 'الكمية المصروفة', 'عدد المعاملات', 'المتوسط', 'الفترة (يوم)', 'الكمية الحالية', 'الكمية المتاحة', 'تاريخ أول صرف', 'تاريخ آخر صرف', 'منذ كم يوم']
     const rows = items.map(item => [
       item.genericItemNumber,
       item.description || '',
-      item.movementClass,
+      item.autoMovementClass,
       item.totalQtyDispatched,
       item.transactionCount,
       item.avgQtyPerTransaction.toFixed(0),
-      item.daysSpan,
+      item.analysisPeriodDays,
+      item.currentStock,
+      item.availableStock,
       item.firstDispatchDate ? new Date(item.firstDispatchDate).toLocaleDateString('ar-SA') : '',
       item.lastDispatchDate ? new Date(item.lastDispatchDate).toLocaleDateString('ar-SA') : '',
       item.daysSinceLastDispatch ?? ''
@@ -403,7 +409,7 @@ export function MovementCategoryPage({
                 </thead>
                 <tbody>
                   {items.map((item) => {
-                    const classConfig = CLASS_CONFIG[item.movementClass as keyof typeof CLASS_CONFIG]
+                    const classConfig = CLASS_CONFIG[item.autoMovementClass as keyof typeof CLASS_CONFIG]
                     return (
                       <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
                         <td className="p-3 font-mono text-xs">{item.genericItemNumber}</td>
@@ -418,8 +424,8 @@ export function MovementCategoryPage({
                             }}
                             className="gap-1"
                           >
-                            {getMovementIcon(item.movementClass)}
-                            {item.movementClass}
+                            {getMovementIcon(item.autoMovementClass)}
+                            {item.autoMovementClass}
                           </Badge>
                         </td>
                         <td className="p-3 text-center font-medium">
@@ -432,7 +438,7 @@ export function MovementCategoryPage({
                           {item.avgQtyPerTransaction.toFixed(0)}
                         </td>
                         <td className="p-3 text-center text-gray-600">
-                          {item.daysSpan} يوم
+                          {item.analysisPeriodDays} يوم
                         </td>
                         <td className="p-3 text-center text-gray-600 text-xs">
                           {item.lastDispatchDate
