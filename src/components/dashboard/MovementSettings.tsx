@@ -138,7 +138,10 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
       const data = await res.json()
       
       if (data.success) {
-        setMessage({ type: 'success', text: '✅ تم حفظ الإعدادات بنجاح' })
+        const reclassifiedMsg = data.reclassifiedItems 
+          ? `\n📊 تم إعادة تصنيف ${data.reclassifiedItems.toLocaleString('ar-SA')} بند`
+          : ''
+        setMessage({ type: 'success', text: `✅ تم حفظ الإعدادات بنجاح${reclassifiedMsg}` })
         setHasChanges(false)
         setIsDefault(false)
       } else {
@@ -440,11 +443,10 @@ export function MovementSettings({ system }: ThresholdSettingsProps) {
         </div>
 
         {/* تنبيه */}
-        <div className="flex items-start gap-2 p-3 bg-amber-50 text-amber-700 rounded-lg text-sm">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+          <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div>
-            <strong>ملاحظة:</strong> الإعدادات تُطبق على التحليلات الجديدة فقط. 
-            لإعادة تصنيف البنود الحالية، ارفع تقرير الحركة مرة أخرى.
+            <strong>تلقائي:</strong> عند حفظ الإعدادات، سيتم إعادة تصنيف جميع البنود الموجودة تلقائياً بالإعدادات الجديدة.
           </div>
         </div>
       </CardContent>

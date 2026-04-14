@@ -202,10 +202,28 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // إعادة تصنيف جميع البنود بالإعدادات الجديدة
+    const reclassifyResult = await db.$executeRaw`
+      UPDATE "ItemMovement"
+      SET 
+        "autoMovementClass" = CASE
+          WHEN "transactionCount" >= ${thresholds.veryFastMinTransactions} AND "totalQtyDispatched" >= ${thresholds.veryFastMinQty} THEN 'سريع جداً'
+          WHEN "transactionCount" >= ${thresholds.fastMinTransactions} AND "totalQtyDispatched" >= ${thresholds.fastMinQty} THEN 'سريع'
+          WHEN "transactionCount" >= ${thresholds.mediumMinTransactions} AND "totalQtyDispatched" >= ${thresholds.mediumMinQty} THEN 'متوسط'
+          WHEN "transactionCount" >= ${thresholds.slowMinTransactions} THEN 'بطيء'
+          ELSE 'عديم الحركة'
+        END,
+        "movementScore" = ("transactionCount" * 10) + ("totalQtyDispatched" / 100),
+        "analysisPeriodDays" = ${thresholds.defaultAnalysisPeriod},
+        "updatedAt" = NOW()
+      WHERE "system" = ${system}
+    `
+
     return NextResponse.json({
       success: true,
-      message: 'تم حفظ الإعدادات بنجاح',
-      thresholds
+      message: 'تم حفظ الإعدادات وإعادة تصنيف البنود بنجاح',
+      thresholds,
+      reclassifiedItems: reclassifyResult
     })
   } catch (error: any) {
     console.error('Save thresholds error:', error)
