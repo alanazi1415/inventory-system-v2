@@ -430,19 +430,10 @@ export async function POST(request: NextRequest) {
     const thresholds = await getThresholds(system)
     const periodDays = analysisPeriodDays || thresholds.defaultAnalysisPeriod
     
-    // حذف البيانات القديمة لهذا النظام فقط إذا كان clearExisting = true
-    // لكن نحافظ على البنود المزامنة عديمة الحركة
-    if (clearExisting) {
-      console.log(`Deleting old report data for system: ${system} (keeping synced items)`)
-      await db.$executeRawUnsafe(`
-        DELETE FROM "ItemMovement" 
-        WHERE "system" = '${system}' 
-          AND ("syncedFromInventory" = false OR "syncedFromInventory" IS NULL OR "transactionCount" > 0)
-      `)
-    }
-    
-    // إدخال البيانات الجديدة
+    // استخدام UPSERT بدلاً من INSERT لتحديث السجلات الموجودة
+    // هذا يضمن أن البنود المزامنة من المخزون يتم تحديثها ببيانات الحركة
     let savedCount = 0
+    let updatedCount = 0
     const batchSize = 100
     
     for (let i = 0; i < items.length; i += batchSize) {
@@ -470,23 +461,40 @@ export async function POST(request: NextRequest) {
           '${id}', '${genericItemNumber}', '${description}', '${system}',
           ${totalQty}, ${transactionCount}, ${transactionCount > 0 ? totalQty / transactionCount : 0},
           '${movementClass}', ${score}, ${item.batchCount || 0}, ${item.uniqueExpiryDates || 0}, ${item.uniqueOrders || 0},
-          ${periodDays}, '${fileName || 'unknown'}', ${firstDispatchDate}, ${lastDispatchDate}, NOW()
+          ${periodDays}, '${fileName || 'unknown'}', ${firstDispatchDate}, ${lastDispatchDate}, NOW(), false
         )`
       }).join(',')
       
       try {
-        await db.$executeRawUnsafe(`
+        // UPSERT: إدراج جديد أو تحديث الموجود
+        const result = await db.$executeRawUnsafe(`
           INSERT INTO "ItemMovement" (
             "id", "genericItemNumber", "description", "system",
             "totalQtyDispatched", "transactionCount", "avgQtyPerTransaction",
             "autoMovementClass", "movementScore", "batchCount", "uniqueExpiryDates", "uniqueOrders",
-            "analysisPeriodDays", "reportSource", "firstDispatchDate", "lastDispatchDate", "createdAt"
+            "analysisPeriodDays", "reportSource", "firstDispatchDate", "lastDispatchDate", "createdAt", "syncedFromInventory"
           ) VALUES ${values}
+          ON CONFLICT ("genericItemNumber", "system") DO UPDATE SET
+            "description" = EXCLUDED."description",
+            "totalQtyDispatched" = EXCLUDED."totalQtyDispatched",
+            "transactionCount" = EXCLUDED."transactionCount",
+            "avgQtyPerTransaction" = EXCLUDED."avgQtyPerTransaction",
+            "autoMovementClass" = EXCLUDED."autoMovementClass",
+            "movementScore" = EXCLUDED."movementScore",
+            "batchCount" = EXCLUDED."batchCount",
+            "uniqueExpiryDates" = EXCLUDED."uniqueExpiryDates",
+            "uniqueOrders" = EXCLUDED."uniqueOrders",
+            "analysisPeriodDays" = EXCLUDED."analysisPeriodDays",
+            "reportSource" = EXCLUDED."reportSource",
+            "firstDispatchDate" = EXCLUDED."firstDispatchDate",
+            "lastDispatchDate" = EXCLUDED."lastDispatchDate",
+            "syncedFromInventory" = false,
+            "updatedAt" = NOW()
         `)
         savedCount += batch.length
         console.log(`Saved batch ${Math.floor(i/batchSize) + 1}, total saved: ${savedCount}`)
       } catch (e: any) {
-        console.error('Batch insert error:', e.message)
+        console.error('Batch upsert error:', e.message)
       }
     }
     
