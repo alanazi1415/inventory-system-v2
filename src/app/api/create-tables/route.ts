@@ -134,11 +134,70 @@ export async function GET() {
       }
     }
 
-    // 6. التحقق من الجداول بعد الإنشاء
+    // 6. إنشاء جدول AlternativeGroup
+    try {
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "AlternativeGroup" (
+          "id" TEXT NOT NULL,
+          "itemNumber" TEXT NOT NULL,
+          "description" TEXT,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "AlternativeGroup_pkey" PRIMARY KEY ("id")
+        )
+      `)
+      await db.$executeRawUnsafe(`
+        CREATE UNIQUE INDEX IF NOT EXISTS "AlternativeGroup_itemNumber_key" ON "AlternativeGroup"("itemNumber")
+      `)
+      await db.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "AlternativeGroup_isActive_idx" ON "AlternativeGroup"("isActive")
+      `)
+      results.alternativeGroup = 'created successfully'
+    } catch (e: any) {
+      results.alternativeGroup = { error: e.message }
+    }
+
+    // 7. إنشاء جدول AlternativeItem
+    try {
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "AlternativeItem" (
+          "id" TEXT NOT NULL,
+          "groupId" TEXT NOT NULL,
+          "itemNumber" TEXT NOT NULL,
+          "sortOrder" INTEGER NOT NULL DEFAULT 1,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "AlternativeItem_pkey" PRIMARY KEY ("id")
+        )
+      `)
+      await db.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "AlternativeItem_groupId_idx" ON "AlternativeItem"("groupId")
+      `)
+      await db.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "AlternativeItem_itemNumber_idx" ON "AlternativeItem"("itemNumber")
+      `)
+      // إضافة Foreign Key
+      try {
+        await db.$executeRawUnsafe(`
+          ALTER TABLE "AlternativeItem" 
+          ADD CONSTRAINT "AlternativeItem_groupId_fkey" 
+          FOREIGN KEY ("groupId") REFERENCES "AlternativeGroup"("id") 
+          ON DELETE CASCADE ON UPDATE CASCADE
+        `)
+        results.alternativeItem = 'created successfully with FK'
+      } catch (fkError: any) {
+        // FK might already exist
+        results.alternativeItem = 'created successfully (FK may exist)'
+      }
+    } catch (e: any) {
+      results.alternativeItem = { error: e.message }
+    }
+
+    // 8. التحقق من الجداول بعد الإنشاء
     try {
       const tablesCheck = await db.$queryRaw`
         SELECT table_name FROM information_schema.tables
-        WHERE table_name IN ('MovementThresholds', 'ClassificationLog', 'ItemMovement')
+        WHERE table_name IN ('MovementThresholds', 'ClassificationLog', 'ItemMovement', 'AlternativeGroup', 'AlternativeItem')
       `
       results.tablesCheck = tablesCheck
     } catch (e: any) {
