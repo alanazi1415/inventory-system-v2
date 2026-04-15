@@ -250,33 +250,53 @@ export async function GET() {
 
     // 10. إنشاء جدول DeliveryCenter
     try {
-      await db.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "DeliveryCenter" (
-          "id" TEXT NOT NULL,
-          "nameEn" TEXT NOT NULL,
-          "nameAr" TEXT NOT NULL,
-          "code" TEXT NOT NULL,
-          "deliveryDay" INTEGER NOT NULL,
-          "deliveryDayEn" TEXT NOT NULL,
-          "deliveryDayAr" TEXT NOT NULL,
-          "isActive" BOOLEAN NOT NULL DEFAULT true,
-          "lastApproved" TIMESTAMP(3),
-          "approvedBy" TEXT,
-          "notes" TEXT,
-          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT "DeliveryCenter_pkey" PRIMARY KEY ("id")
-        )
-      `)
-      await db.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "DeliveryCenter_deliveryDay_idx" ON "DeliveryCenter"("deliveryDay")
-      `)
-      await db.$executeRawUnsafe(`
-        CREATE INDEX IF NOT EXISTS "DeliveryCenter_code_idx" ON "DeliveryCenter"("code")
-      `)
-      results.deliveryCenter = 'created successfully'
+      // التحقق أولاً إذا كان الجدول موجود
+      const tableCheck = await db.$queryRaw`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_name = 'DeliveryCenter'
+      ` as any[]
+      
+      if (tableCheck.length === 0) {
+        await db.$executeRawUnsafe(`
+          CREATE TABLE "DeliveryCenter" (
+            "id" TEXT NOT NULL,
+            "nameEn" TEXT NOT NULL,
+            "nameAr" TEXT NOT NULL,
+            "code" TEXT NOT NULL,
+            "deliveryDay" INTEGER NOT NULL,
+            "deliveryDayEn" TEXT NOT NULL,
+            "deliveryDayAr" TEXT NOT NULL,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "lastApproved" TIMESTAMP(3),
+            "approvedBy" TEXT,
+            "notes" TEXT,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT "DeliveryCenter_pkey" PRIMARY KEY ("id")
+          )
+        `)
+        await db.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "DeliveryCenter_deliveryDay_idx" ON "DeliveryCenter"("deliveryDay")
+        `)
+        await db.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "DeliveryCenter_code_idx" ON "DeliveryCenter"("code")
+        `)
+        results.deliveryCenter = 'created successfully'
+      } else {
+        results.deliveryCenter = 'already exists'
+      }
     } catch (e: any) {
       results.deliveryCenter = { error: e.message }
+    }
+
+    // 11. التحقق النهائي من جدول DeliveryCenter
+    try {
+      const deliveryCheck = await db.$queryRaw`
+        SELECT table_name FROM information_schema.tables WHERE table_name = 'DeliveryCenter'
+      `
+      results.deliveryCenterExists = deliveryCheck
+    } catch (e: any) {
+      results.deliveryCenterExists = { error: e.message }
     }
 
     return NextResponse.json({
