@@ -30,6 +30,7 @@ const PERMISSIONS: Permission[] = [
   { key: 'canViewCentral', label: 'البنود المركزية', icon: Building2 },
   { key: 'canViewReports', label: 'التقارير', icon: FileText },
   { key: 'canViewMovement', label: 'تحليل الحركة', icon: Activity },
+  { key: 'canViewAlternatives', label: 'البدائل الدوائية', icon: Activity },
 ]
 
 // صلاحيات تحليل الحركة المتقدمة
@@ -60,6 +61,7 @@ interface User {
   canViewCentral: boolean
   canViewReports: boolean
   canViewMovement: boolean
+  canViewAlternatives: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
   canEditMovementSettings: boolean
@@ -90,6 +92,7 @@ export function UserManagement() {
     canViewCentral: true,
     canViewReports: true,
     canViewMovement: true,
+    canViewAlternatives: true,
     canViewHoz: true,
     canViewMwsal: true,
     canEditMovementSettings: false,
@@ -131,6 +134,7 @@ export function UserManagement() {
       canViewCentral: true,
       canViewReports: true,
       canViewMovement: true,
+      canViewAlternatives: true,
       canViewHoz: true,
       canViewMwsal: true,
       canEditMovementSettings: false,
@@ -159,6 +163,7 @@ export function UserManagement() {
       canViewCentral: user.canViewCentral,
       canViewReports: user.canViewReports,
       canViewMovement: user.canViewMovement,
+      canViewAlternatives: user.canViewAlternatives || false,
       canViewHoz: user.canViewHoz,
       canViewMwsal: user.canViewMwsal,
       canEditMovementSettings: user.canEditMovementSettings,
@@ -238,6 +243,7 @@ export function UserManagement() {
       canViewCentral: value,
       canViewReports: value,
       canViewMovement: value,
+      canViewAlternatives: value,
       canViewHoz: value,
       canViewMwsal: value,
       canEditMovementSettings: value,

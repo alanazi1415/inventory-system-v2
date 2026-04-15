@@ -134,6 +134,23 @@ export async function GET() {
       }
     }
 
+    // 5.1 إضافة صلاحية البدائل الدوائية للمستخدمين
+    try {
+      await db.$executeRawUnsafe(`
+        SELECT "canViewAlternatives" FROM "User" LIMIT 1
+      `)
+      results.userAlternativesPermission = 'already exists'
+    } catch {
+      try {
+        await db.$executeRawUnsafe(`
+          ALTER TABLE "User" ADD COLUMN "canViewAlternatives" BOOLEAN NOT NULL DEFAULT true
+        `)
+        results.userAlternativesPermission = 'added successfully'
+      } catch (e: any) {
+        results.userAlternativesPermission = { error: e.message }
+      }
+    }
+
     // 6. إنشاء جدول AlternativeGroup
     try {
       await db.$executeRawUnsafe(`

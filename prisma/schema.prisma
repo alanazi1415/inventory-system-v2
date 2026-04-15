@@ -143,6 +143,7 @@ model User {
   canViewCentral      Boolean @default(true)
   canViewReports      Boolean @default(true)
   canViewMovement     Boolean @default(true)
+  canViewAlternatives Boolean @default(true)
   canViewHoz          Boolean @default(true)
   canViewMwsal        Boolean @default(true)
   // صلاحيات تحليل الحركة

@@ -64,18 +64,34 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
         // تحليل البيانات
         // بنية الملف: Column 0 = Nupco Code, Column 1 = Desc., Column 2 = Alternative
         const items = []
+        console.log('Raw data rows:', rawData.length)
         for (let i = 1; i < rawData.length; i++) {
           const row = rawData[i]
           if (!row || row.length === 0) continue
 
-          const itemNumber = String(row[0] || '').trim()  // Nupco Code
-          const description = String(row[1] || '').trim()  // Desc.
-          const alternatives = String(row[2] || '').trim()  // Alternative
+          // تحويل الرقم إلى نص بشكل صحيح (قد يكون رقم كبير أو علمي)
+          let itemNumber = row[0]
+          if (typeof itemNumber === 'number') {
+            itemNumber = itemNumber.toString()
+          } else {
+            itemNumber = String(itemNumber || '').trim()
+          }
+
+          let alternatives = row[2]
+          if (typeof alternatives === 'number') {
+            alternatives = alternatives.toString()
+          } else {
+            alternatives = String(alternatives || '').trim()
+          }
+
+          const description = String(row[1] || '').trim()
 
           if (itemNumber && alternatives) {
             items.push({ itemNumber, description, alternatives })
           }
         }
+
+        console.log('Parsed items:', items.length, items.slice(0, 3))
 
         if (items.length === 0) {
           toast({ title: "خطأ", description: "لم يتم العثور على بيانات صالحة", variant: "destructive" })
