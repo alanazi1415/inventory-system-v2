@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Pill, Search, Package, AlertCircle, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, XCircle, CheckCircle } from "lucide-react"
+import { Pill, Search, Package, AlertCircle, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, XCircle, CheckCircle, Filter } from "lucide-react"
 
 interface AlternativeGroup {
   id: string
@@ -34,6 +34,7 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [filter, setFilter] = useState<'all' | 'need-alternative' | 'available-alternative'>('all')
   const pageSize = 20
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
       const offset = (page - 1) * pageSize
       const res = await fetch(`/api/alternatives?limit=${pageSize}&offset=${offset}&system=${selectedSystem}${searchQuery ? `&search=${searchQuery}` : ''}`)
       const data = await res.json()
+      console.log('API Response:', data)
       if (data.success) {
         setGroups(data.groups || [])
         setTotal(data.total || 0)
@@ -82,7 +84,23 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
     })
   }
 
-  // حساب الإحصائيات
+  // فلترة المجموعات حسب الفلتر المحدد
+  const filteredGroups = groups.filter(group => {
+    const hasAlternativeWithStock = group.items.some(i => (i.availableStock || 0) > 0)
+    const originalAvailable = group.originalStock > 0
+
+    if (filter === 'need-alternative') {
+      // البنود غير المتوفرة والتي لها بديل متوفر
+      return !originalAvailable && hasAlternativeWithStock
+    }
+    if (filter === 'available-alternative') {
+      // البنود التي على الأقل بديل واحد متوفر (سواء الأصل متوفر أو لا)
+      return hasAlternativeWithStock
+    }
+    return true // كل البدائل
+  })
+
+  // حساب الإحصائيات (على كامل البيانات، وليس فقط الصفحة الحالية)
   const stats = {
     totalGroups: total,
     totalAlternatives: groups.reduce((sum, g) => sum + g.items.length, 0),
@@ -108,7 +126,7 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
 
       {/* الإحصائيات */}
       <div className="grid grid-cols-4 gap-4">
-        <Card className="bg-teal-50">
+        <Card className="bg-teal-50 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setFilter('all')}>
           <CardContent className="p-4 flex items-center gap-3">
             <Pill className="w-8 h-8 text-teal-500" />
             <div>
@@ -135,19 +153,19 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-orange-50">
+        <Card className="bg-orange-50 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setFilter('need-alternative')}>
           <CardContent className="p-4 flex items-center gap-3">
             <AlertCircle className="w-8 h-8 text-orange-500" />
             <div>
-              <p className="text-sm text-gray-600">يحتاج بديل</p>
+              <p className="text-sm text-gray-600">يحتاج بديل متوفر</p>
               <p className="text-2xl font-bold text-orange-600">{stats.originalNotAvailable}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* البحث */}
-      <div className="flex gap-2">
+      {/* البحث والفلتر */}
+      <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <Search className="absolute right-3 top-3 w-4 h-4 text-gray-400" />
           <Input
@@ -159,6 +177,31 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
           />
         </div>
         <Button onClick={handleSearch}>بحث</Button>
+        <div className="flex gap-1 border rounded-lg p-1">
+          <Button
+            variant={filter === 'all' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setFilter('all')}
+          >
+            الكل
+          </Button>
+          <Button
+            variant={filter === 'need-alternative' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setFilter('need-alternative')}
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            يحتاج بديل
+          </Button>
+          <Button
+            variant={filter === 'available-alternative' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setFilter('available-alternative')}
+            className="bg-green-500 hover:bg-green-600 text-white"
+          >
+            بديل متوفر
+          </Button>
+        </div>
       </div>
 
       {/* قائمة البدائل */}
@@ -167,23 +210,36 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
           <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400" />
           <p className="text-gray-500 mt-2">جاري التحميل...</p>
         </div>
-      ) : groups.length === 0 ? (
+      ) : filteredGroups.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Pill className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">لا توجد بدائل دوائية</p>
+            <p className="text-gray-500">
+              {filter === 'all' 
+                ? 'لا توجد بدائل دوائية' 
+                : filter === 'need-alternative'
+                ? 'لا توجد بنود تحتاج بديل متوفر'
+                : 'لا توجد بنود لها بديل متوفر'}
+            </p>
             <p className="text-sm text-gray-400 mt-1">يمكن للأدمن رفع ملف البدائل من لوحة التحكم</p>
           </CardContent>
         </Card>
       ) : (
         <>
           <div className="space-y-2">
-            {groups.map((group) => {
+            {filteredGroups.map((group) => {
               const hasAlternativeWithStock = group.items.some(i => (i.availableStock || 0) > 0)
               const originalAvailable = group.originalStock > 0
               
               return (
-                <Card key={group.id} className="overflow-hidden">
+                <Card 
+                  key={group.id} 
+                  className={`overflow-hidden transition-all ${
+                    !originalAvailable && hasAlternativeWithStock 
+                      ? 'border-orange-300 bg-orange-50/30' 
+                      : ''
+                  }`}
+                >
                   <div
                     className="p-4 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
                     onClick={() => toggleGroup(group.id)}
@@ -195,8 +251,8 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
                         <ChevronDown className="w-5 h-5 text-gray-400" />
                       )}
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold">{group.itemNumber}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-bold text-lg">{group.itemNumber}</span>
                           {/* حالة البند الأصلي */}
                           {originalAvailable ? (
                             <Badge className="bg-green-100 text-green-700 text-xs">
@@ -218,7 +274,9 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       {!originalAvailable && hasAlternativeWithStock && (
-                        <Badge className="bg-green-100 text-green-700">يوجد بديل متوفر</Badge>
+                        <Badge className="bg-green-100 text-green-700 animate-pulse">
+                          ✓ يوجد بديل متوفر
+                        </Badge>
                       )}
                       {!originalAvailable && !hasAlternativeWithStock && (
                         <Badge className="bg-red-100 text-red-700">لا يوجد بديل متوفر</Badge>
@@ -238,28 +296,34 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
                           </tr>
                         </thead>
                         <tbody>
-                          {group.items.map((item, idx) => (
-                            <tr key={item.id} className="border-b last:border-0">
-                              <td className="py-2 text-gray-400">{idx + 1}</td>
-                              <td className="py-2 font-mono">{item.itemNumber}</td>
-                              <td className="py-2">
-                                {(item.availableStock || 0) > 0 ? (
-                                  <span className="text-green-600 font-medium">
-                                    {item.availableStock?.toLocaleString('ar-SA')}
-                                  </span>
-                                ) : (
-                                  <span className="text-gray-400">0</span>
-                                )}
-                              </td>
-                              <td className="py-2">
-                                {(item.availableStock || 0) > 0 ? (
-                                  <Badge className="bg-green-100 text-green-700 text-xs">متوفر</Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-xs">غير متوفر</Badge>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
+                          {group.items.map((item, idx) => {
+                            const isAvailable = (item.availableStock || 0) > 0
+                            return (
+                              <tr 
+                                key={item.id} 
+                                className={`border-b last:border-0 ${isAvailable ? 'bg-green-50' : ''}`}
+                              >
+                                <td className="py-2 text-gray-400">{idx + 1}</td>
+                                <td className="py-2 font-mono font-bold">{item.itemNumber}</td>
+                                <td className="py-2">
+                                  {isAvailable ? (
+                                    <span className="text-green-600 font-bold text-base">
+                                      {item.availableStock?.toLocaleString('ar-SA')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">0</span>
+                                  )}
+                                </td>
+                                <td className="py-2">
+                                  {isAvailable ? (
+                                    <Badge className="bg-green-100 text-green-700 text-xs">متوفر ✓</Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs">غير متوفر</Badge>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>

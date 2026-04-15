@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    // استخدام Raw SQL للجلب لتجنب مشاكل Prisma client
+    console.log('=== GET Alternatives ===')
+    console.log({ itemNumber, search, system, limit, offset })
+
+    // استخدام Raw SQL للجلب
     let groupsQuery: any[]
     
     if (itemNumber) {
@@ -67,6 +70,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log(`Found ${groupsQuery.length} groups`)
+
     if (groupsQuery.length === 0) {
       return NextResponse.json({
         success: true,
@@ -77,37 +82,54 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // جلب الـ items لكل مجموعة
+    // جلب الـ items لكل مجموعة - استخدام unsafe مع quotes صحيحة
     const groupIds = groupsQuery.map((g: any) => g.id)
-    const itemsQuery = await db.$queryRaw`
+    const groupIdsList = groupIds.map(id => `'${id}'`).join(',')
+    
+    console.log(`Fetching items for groupIds: ${groupIdsList.substring(0, 100)}...`)
+    
+    const itemsQuery = await db.$queryRawUnsafe(`
       SELECT * FROM "AlternativeItem" 
-      WHERE "groupId" IN (${groupIds.join(',')})
+      WHERE "groupId" IN (${groupIdsList})
       ORDER BY "sortOrder" ASC
-    ` as any[]
+    `) as any[]
+
+    console.log(`Found ${itemsQuery.length} alternative items`)
 
     // جمع كل أرقام البنود (الأصلية + البدائل)
     const originalItemNumbers = groupsQuery.map((g: any) => g.itemNumber)
     const alternativeItemNumbers = itemsQuery.map((item: any) => item.itemNumber)
     const allItemNumbers = [...new Set([...originalItemNumbers, ...alternativeItemNumbers])]
     
+    console.log(`Checking stock for ${allItemNumbers.length} item numbers`)
+    
     // جلب المخزون لجميع البنود
     let stockMap = new Map<string, number>()
     if (allItemNumbers.length > 0) {
       try {
-        const stockQuery = await db.$queryRaw`
+        const itemNumbersList = allItemNumbers.map(n => `'${n}'`).join(',')
+        
+        const stockQuery = await db.$queryRawUnsafe(`
           SELECT "genericItemNumber", SUM("availableQty") as "availableQty"
           FROM "InventoryItem"
-          WHERE "genericItemNumber" IN (${allItemNumbers.map(n => `'${n}'`).join(',')})
-          AND "system" = ${system}
+          WHERE "genericItemNumber" IN (${itemNumbersList})
+          AND "system" = '${system}'
           AND "daysToExpire" > 0
           GROUP BY "genericItemNumber"
-        ` as any[]
+        `) as any[]
+        
+        console.log(`Stock query returned ${stockQuery.length} items`)
         
         for (const row of stockQuery) {
-          stockMap.set(row.genericItemNumber, row.availableQty || 0)
+          stockMap.set(row.genericItemNumber, Number(row.availableQty) || 0)
         }
-      } catch (e) {
-        console.log('Could not fetch stock info:', e)
+        
+        // طباعة عينة من بيانات المخزون
+        console.log('Sample stock data:', 
+          [...stockMap.entries()].slice(0, 5).map(([k, v]) => `${k}: ${v}`)
+        )
+      } catch (e: any) {
+        console.log('Could not fetch stock info:', e.message)
       }
     }
 
@@ -134,6 +156,14 @@ export async function GET(request: NextRequest) {
       originalStock: stockMap.get(g.itemNumber) || 0,
       items: itemsMap.get(g.id) || []
     }))
+
+    // طباعة عينة من النتائج
+    console.log('Sample results:', groups.slice(0, 2).map(g => ({
+      itemNumber: g.itemNumber,
+      originalStock: g.originalStock,
+      alternativesCount: g.items.length,
+      alternatives: g.items.map(i => `${i.itemNumber}: ${i.availableStock}`)
+    })))
 
     // جلب العدد الإجمالي
     const countResult = await db.$queryRaw`
@@ -302,7 +332,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`Found ${alternativesMap.size} unique items with alternatives`)
 
-    // إدخال البيانات باستخدام $transaction للكفاءة
+    // إدخال البيانات
     let addedGroups = 0
     let addedItems = 0
     const errors: string[] = []
