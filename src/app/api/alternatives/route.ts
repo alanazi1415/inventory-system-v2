@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const itemNumber = searchParams.get('itemNumber')
     const search = searchParams.get('search')
-    const limit = parseInt(searchParams.get('limit') || '1000')
+    const system = searchParams.get('system') || 'hoz'
+    const limit = parseInt(searchParams.get('limit') || '20')
     const offset = parseInt(searchParams.get('offset') || '0')
 
     // استخدام Raw SQL للجلب لتجنب مشاكل Prisma client
@@ -70,7 +71,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         groups: [],
-        total: 0
+        total: 0,
+        page: 1,
+        totalPages: 0
       })
     }
 
@@ -82,6 +85,30 @@ export async function GET(request: NextRequest) {
       ORDER BY "sortOrder" ASC
     ` as any[]
 
+    // جلب أرقام البنود البديلة
+    const allAlternativeNumbers = itemsQuery.map((item: any) => item.itemNumber)
+    
+    // جلب المخزون للبنود البديلة
+    let stockMap = new Map<string, number>()
+    if (allAlternativeNumbers.length > 0) {
+      try {
+        const stockQuery = await db.$queryRaw`
+          SELECT "genericItemNumber", SUM("availableQty") as "availableQty"
+          FROM "InventoryItem"
+          WHERE "genericItemNumber" IN (${allAlternativeNumbers.map(n => `'${n}'`).join(',')})
+          AND "system" = ${system}
+          AND "daysToExpire" > 0
+          GROUP BY "genericItemNumber"
+        ` as any[]
+        
+        for (const row of stockQuery) {
+          stockMap.set(row.genericItemNumber, row.availableQty || 0)
+        }
+      } catch (e) {
+        console.log('Could not fetch stock info:', e)
+      }
+    }
+
     // تجميع الـ items حسب groupId
     const itemsMap = new Map<string, any[]>()
     for (const item of itemsQuery) {
@@ -92,7 +119,7 @@ export async function GET(request: NextRequest) {
         id: item.id,
         itemNumber: item.itemNumber,
         sortOrder: item.sortOrder,
-        availableStock: 0
+        availableStock: stockMap.get(item.itemNumber) || 0
       })
     }
 
