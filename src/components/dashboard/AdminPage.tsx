@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2, Lock, Key } from "lucide-react"
+import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2, Lock, Key, Pills } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface AdminPageProps { 
@@ -44,25 +44,91 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
     if (!file) return
 
     setUploading(true)
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('system', selectedSystem)
 
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      const data = await res.json()
+      // معالجة خاصة للبدائل الدوائية
+      if (selectedSystem === 'alternatives') {
+        const XLSX = await import('xlsx')
+        const buffer = await file.arrayBuffer()
+        const workbook = XLSX.read(buffer, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
 
-      if (data.success) {
-        toast({ title: "تم الرفع بنجاح", description: data.message })
-        setUploadLogs(prev => [{
-          fileName: file.name,
-          system: selectedSystem,
-          records: data.recordsCount,
-          time: new Date().toLocaleString('ar-SA')
-        }, ...prev])
-        setTimeout(fetchStats, 1000)
+        if (rawData.length < 2) {
+          toast({ title: "خطأ", description: "الملف فارغ", variant: "destructive" })
+          setUploading(false)
+          return
+        }
+
+        // تحليل البيانات
+        const items = []
+        for (let i = 1; i < rawData.length; i++) {
+          const row = rawData[i]
+          if (!row || row.length === 0) continue
+          
+          const itemNumber = String(row[0] || '').trim()  // Nupco Code
+          const description = String(row[2] || '').trim()  // Desc.
+          const alternatives = String(row[3] || '').trim()  // Alternative
+          
+          if (itemNumber && alternatives) {
+            items.push({ itemNumber, description, alternatives })
+          }
+        }
+
+        if (items.length === 0) {
+          toast({ title: "خطأ", description: "لم يتم العثور على بيانات صالحة", variant: "destructive" })
+          setUploading(false)
+          return
+        }
+
+        // إرسال للـ API
+        const res = await fetch('/api/alternatives', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items,
+            clearExisting: true
+          })
+        })
+
+        const data = await res.json()
+
+        if (data.success) {
+          toast({ 
+            title: "تم الرفع بنجاح", 
+            description: `${data.stats.groupsCreated} مجموعة بديلة - ${data.stats.alternativesCreated} بند بديل` 
+          })
+          setUploadLogs(prev => [{
+            fileName: file.name,
+            system: 'البدائل الدوائية',
+            records: data.stats.groupsCreated,
+            time: new Date().toLocaleString('ar-SA')
+          }, ...prev])
+        } else {
+          toast({ title: "خطأ", description: data.error, variant: "destructive" })
+        }
       } else {
-        toast({ title: "خطأ", description: data.details || data.error, variant: "destructive" })
+        // رفع عادي للملفات الأخرى
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('system', selectedSystem)
+
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await res.json()
+
+        if (data.success) {
+          toast({ title: "تم الرفع بنجاح", description: data.message })
+          setUploadLogs(prev => [{
+            fileName: file.name,
+            system: selectedSystem,
+            records: data.recordsCount,
+            time: new Date().toLocaleString('ar-SA')
+          }, ...prev])
+          setTimeout(fetchStats, 1000)
+        } else {
+          toast({ title: "خطأ", description: data.details || data.error, variant: "destructive" })
+        }
       }
     } catch (error: any) {
       toast({ title: "خطأ", description: 'حدث خطأ في الاتصال', variant: "destructive" })
@@ -124,6 +190,7 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
     { value: 'smoking', label: 'التدخين', desc: 'بنود التدخين', icon: Cigarette, color: 'text-blue-600', bgColor: 'bg-blue-50' },
     { value: 'kidney', label: 'الكلى', desc: 'بنود الكلى', icon: Droplets, color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { value: 'central', label: 'المركزية', desc: 'البنود المركزية', icon: Building2, color: 'text-slate-600', bgColor: 'bg-slate-50' },
+    { value: 'alternatives', label: 'البدائل الدوائية', desc: 'بنود بديلة', icon: Pills, color: 'text-teal-600', bgColor: 'bg-teal-50' },
   ]
 
   return (

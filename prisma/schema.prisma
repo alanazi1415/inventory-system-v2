@@ -280,3 +280,37 @@ model ClassificationLog {
   @@index([system])
   @@index([createdAt])
 }
+
+// ============================================
+// البدائل الدوائية (Pharmaceutical Alternatives)
+// ============================================
+
+// مجموعة بديلة - تمثل بديل واحد (قد يكون بند واحد أو عدة بنود تؤخذ معاً)
+model AlternativeGroup {
+  id              String   @id @default(cuid())
+  itemNumber      String   // رقم البند الأصلي
+  description     String?  // وصف البند الأصلي (اختياري)
+  notes           String?  // ملاحظات على المجموعة البديلة
+  isActive        Boolean  @default(true) // هل المجموعة فعالة
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // البنود البديلة في هذه المجموعة
+  items           AlternativeItem[]
+
+  @@index([itemNumber])
+}
+
+// بند بديل - بند واحد داخل مجموعة بديلة
+model AlternativeItem {
+  id              String   @id @default(cuid())
+  groupId         String   // معرف المجموعة البديلة
+  group           AlternativeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  itemNumber      String   // رقم البند البديل
+  description     String?  // وصف البند البديل
+  sortOrder       Int      @default(1) // ترتيب البند في المجموعة
+  createdAt       DateTime @default(now())
+
+  @@index([groupId])
+  @@index([itemNumber])
+}
