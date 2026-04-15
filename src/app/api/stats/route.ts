@@ -95,6 +95,20 @@ export async function GET(request: NextRequest) {
       const FRIDAY = 5
       const SATURDAY = 6
       
+      // دالة للحصول على التاريخ بتوقيت السعودية
+      const getSaudiDate = (): { today: Date; currentDay: number; currentMonth: number; currentYear: number } => {
+        const now = new Date()
+        const saudiOffset = 3 * 60
+        const utcOffset = now.getTimezoneOffset()
+        const saudiTime = new Date(now.getTime() + (utcOffset + saudiOffset) * 60 * 1000)
+        return {
+          today: new Date(saudiTime.getFullYear(), saudiTime.getMonth(), saudiTime.getDate()),
+          currentDay: saudiTime.getDate(),
+          currentMonth: saudiTime.getMonth(),
+          currentYear: saudiTime.getFullYear()
+        }
+      }
+      
       const getEffectiveDeliveryDate = (deliveryDay: number, currentMonth: number, currentYear: number): Date => {
         let deliveryDate = new Date(currentYear, currentMonth, deliveryDay)
         let dayOfWeek = deliveryDate.getDay()
@@ -113,14 +127,11 @@ export async function GET(request: NextRequest) {
       }
       
       const getDaysUntilDelivery = (deliveryDay: number): number => {
-        const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        const currentMonth = now.getMonth()
-        const currentYear = now.getFullYear()
+        const { today, currentMonth, currentYear } = getSaudiDate()
         
         let effectiveDate = getEffectiveDeliveryDate(deliveryDay, currentMonth, currentYear)
         
-        if (effectiveDate <= today) {
+        if (effectiveDate < today) {
           let nextMonth = currentMonth + 1
           let nextYear = currentYear
           if (nextMonth > 11) {
@@ -131,7 +142,7 @@ export async function GET(request: NextRequest) {
         }
         
         const diffTime = effectiveDate.getTime() - today.getTime()
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return Math.round(diffTime / (1000 * 60 * 60 * 24))
       }
       
       // عد المراكز التي بقي على موعدها 1-2 يوم (24-48 ساعة)

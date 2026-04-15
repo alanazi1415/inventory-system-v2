@@ -56,20 +56,32 @@ function getEffectiveDeliveryDate(deliveryDay: number, currentMonth: number, cur
   return deliveryDate
 }
 
+// دالة للحصول على التاريخ بتوقيت السعودية
+function getSaudiDate(): { today: Date; currentDay: number; currentMonth: number; currentYear: number } {
+  const now = new Date()
+  // تحويل لتوقيت السعودية (UTC+3)
+  const saudiOffset = 3 * 60 // 3 ساعات بالدقائق
+  const utcOffset = now.getTimezoneOffset() // بالدقائق سالب
+  const saudiTime = new Date(now.getTime() + (utcOffset + saudiOffset) * 60 * 1000)
+  
+  return {
+    today: new Date(saudiTime.getFullYear(), saudiTime.getMonth(), saudiTime.getDate()),
+    currentDay: saudiTime.getDate(),
+    currentMonth: saudiTime.getMonth(),
+    currentYear: saudiTime.getFullYear()
+  }
+}
+
 // دالة لحساب الأيام المتبقية حتى التوصيل مع مراعاة عطلة نهاية الأسبوع
 function getDaysUntilDelivery(deliveryDay: number): number {
-  const now = new Date()
-  // إزالة الوقت للمقارنة الدقيق
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const currentDay = now.getDate()
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
+  const { today, currentDay, currentMonth, currentYear } = getSaudiDate()
   
   // حساب تاريخ التوصيل الفعلي في الشهر الحالي
   let effectiveDate = getEffectiveDeliveryDate(deliveryDay, currentMonth, currentYear)
   
   // إذا كان التاريخ الفعلي قد مر (في الماضي أو اليوم)، نحسب للشهر القادم
-  if (effectiveDate <= today) {
+  // نستخدم < بدلاً من <= لأننا لا نريد إظهار مراكز موعدها اليوم
+  if (effectiveDate < today) {
     // حساب للشهر القادم
     let nextMonth = currentMonth + 1
     let nextYear = currentYear
@@ -82,7 +94,7 @@ function getDaysUntilDelivery(deliveryDay: number): number {
   
   // حساب الفرق بالأيام
   const diffTime = effectiveDate.getTime() - today.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
   
   return diffDays
 }
