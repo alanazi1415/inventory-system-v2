@@ -162,11 +162,60 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing ${validItems.length} valid alternative items`)
 
+    // التحقق من وجود الجداول
+    try {
+      const tablesCheck = await db.$queryRaw`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_name IN ('AlternativeGroup', 'AlternativeItem')
+      ` as any[]
+      console.log('Tables check:', tablesCheck)
+      if (tablesCheck.length < 2) {
+        console.log('Tables missing, attempting to create...')
+        // إنشاء الجداول إذا لم تكن موجودة
+        await db.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "AlternativeGroup" (
+            "id" TEXT NOT NULL,
+            "itemNumber" TEXT NOT NULL,
+            "description" TEXT,
+            "notes" TEXT,
+            "isActive" BOOLEAN NOT NULL DEFAULT true,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT "AlternativeGroup_pkey" PRIMARY KEY ("id")
+          )
+        `)
+        await db.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "AlternativeItem" (
+            "id" TEXT NOT NULL,
+            "groupId" TEXT NOT NULL,
+            "itemNumber" TEXT NOT NULL,
+            "description" TEXT,
+            "sortOrder" INTEGER NOT NULL DEFAULT 1,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT "AlternativeItem_pkey" PRIMARY KEY ("id")
+          )
+        `)
+        console.log('Tables created successfully')
+      }
+    } catch (tableError: any) {
+      console.error('Error checking/creating tables:', tableError)
+      return NextResponse.json({ 
+        error: 'خطأ في التحقق من الجداول',
+        details: tableError.message 
+      }, { status: 500 })
+    }
+
     // حذف البيانات القديمة إذا طُلب
     if (clearExisting) {
       console.log('Clearing existing alternatives...')
-      await db.alternativeItem.deleteMany({})
-      await db.alternativeGroup.deleteMany({})
+      try {
+        await db.alternativeItem.deleteMany({})
+        await db.alternativeGroup.deleteMany({})
+        console.log('Existing data cleared')
+      } catch (clearError: any) {
+        console.error('Error clearing existing data:', clearError)
+        // متابعة حتى لو فشل الحذف
+      }
     }
 
     // تجميع البدائل حسب البند الأصلي
@@ -211,40 +260,52 @@ export async function POST(request: NextRequest) {
 
     console.log(`Found ${alternativesMap.size} unique items with alternatives`)
 
-    // إدخال البيانات
+    // إدخال البيانات باستخدام $transaction للكفاءة
     let addedGroups = 0
     let addedItems = 0
+    const errors: string[] = []
+
+    // إنشاء معرفات فريدة
+    const generateId = () => {
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+      let result = 'c'
+      for (let i = 0; i < 24; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length))
+      }
+      return result
+    }
 
     for (const [itemNumber, data] of alternativesMap.entries()) {
       try {
-        // إنشاء مجموعة بديلة
-        const group = await db.alternativeGroup.create({
-          data: {
-            itemNumber,
-            description: data.description || null,
-            isActive: true
-          }
-        })
+        const groupId = generateId()
+        
+        // إنشاء مجموعة بديلة باستخدام SQL مباشرة
+        await db.$executeRawUnsafe(`
+          INSERT INTO "AlternativeGroup" (id, "itemNumber", description, "isActive", "createdAt", "updatedAt")
+          VALUES ('${groupId}', '${itemNumber}', ${data.description ? `'${data.description.replace(/'/g, "''")}'` : 'NULL'}, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `)
 
         // إضافة البنود البديلة
         for (let i = 0; i < data.alternatives.length; i++) {
-          await db.alternativeItem.create({
-            data: {
-              groupId: group.id,
-              itemNumber: data.alternatives[i],
-              sortOrder: i + 1
-            }
-          })
+          const itemId = generateId()
+          await db.$executeRawUnsafe(`
+            INSERT INTO "AlternativeItem" (id, "groupId", "itemNumber", "sortOrder", "createdAt")
+            VALUES ('${itemId}', '${groupId}', '${data.alternatives[i]}', ${i + 1}, CURRENT_TIMESTAMP)
+          `)
           addedItems++
         }
 
         addedGroups++
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Error adding alternatives for ${itemNumber}:`, error)
+        errors.push(`${itemNumber}: ${error.message}`)
       }
     }
 
     console.log(`Added ${addedGroups} groups with ${addedItems} alternative items`)
+    if (errors.length > 0) {
+      console.log(`Errors (${errors.length}):`, errors.slice(0, 5))
+    }
 
     return NextResponse.json({
       success: true,
@@ -253,7 +314,9 @@ export async function POST(request: NextRequest) {
         itemsReceived: items.length,
         validItems: validItems.length,
         groupsCreated: addedGroups,
-        alternativesCreated: addedItems
+        alternativesCreated: addedItems,
+        errorsCount: errors.length,
+        errors: errors.slice(0, 10) // أول 10 أخطاء فقط
       }
     })
 
@@ -261,7 +324,8 @@ export async function POST(request: NextRequest) {
     console.error('Upload alternatives error:', error)
     return NextResponse.json({
       error: 'حدث خطأ في رفع البدائل',
-      details: error.message
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     }, { status: 500 })
   }
 }
