@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2, Lock, Key, Pills } from "lucide-react"
+import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2, Lock, Key, Pill } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface AdminPageProps { 
@@ -190,7 +190,7 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
     { value: 'smoking', label: 'التدخين', desc: 'بنود التدخين', icon: Cigarette, color: 'text-blue-600', bgColor: 'bg-blue-50' },
     { value: 'kidney', label: 'الكلى', desc: 'بنود الكلى', icon: Droplets, color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { value: 'central', label: 'المركزية', desc: 'البنود المركزية', icon: Building2, color: 'text-slate-600', bgColor: 'bg-slate-50' },
-    { value: 'alternatives', label: 'البدائل الدوائية', desc: 'بنود بديلة', icon: Pills, color: 'text-teal-600', bgColor: 'bg-teal-50' },
+    { value: 'alternatives', label: 'البدائل الدوائية', desc: 'بنود بديلة', icon: Pill, color: 'text-teal-600', bgColor: 'bg-teal-50' },
   ]
 
   return (
