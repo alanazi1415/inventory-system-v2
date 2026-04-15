@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2, Lock, Key, Pill } from "lucide-react"
+import { Upload, FileSpreadsheet, RefreshCw, Users, Eye, Database, Heart, Syringe, Ban, AlertTriangle, Clock, Shield, Cigarette, Droplets, Building2, Lock, Key, Pill, Truck } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface AdminPageProps { 
@@ -145,6 +145,81 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
         } else {
           toast({ title: "خطأ", description: data.error, variant: "destructive" })
         }
+      } else if (selectedSystem === 'delivery-schedule') {
+        // معالجة خاصة لجدول التوصيل
+        const XLSX = await import('xlsx')
+        const buffer = await file.arrayBuffer()
+        const workbook = XLSX.read(buffer, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
+
+        if (rawData.length < 2) {
+          toast({ title: "خطأ", description: "الملف فارغ", variant: "destructive" })
+          setUploading(false)
+          return
+        }
+
+        // تحليل البيانات
+        // بنية الملف: Column 0 = Health Center (EN), Column 1 = Delivery Day, Column 2 = Arabic Name, Column 3 = Delivery Day (AR), Column 4 = Code
+        const items = []
+        console.log('Raw data rows:', rawData.length)
+        for (let i = 1; i < rawData.length; i++) {
+          const row = rawData[i]
+          if (!row || row.length === 0) continue
+
+          const nameEn = String(row[0] || '').trim()
+          const deliveryDayEn = String(row[1] || '').trim()
+          const nameAr = String(row[2] || '').trim()
+          const deliveryDayAr = String(row[3] || '').trim()
+          const code = String(row[4] || '').trim()
+
+          if (nameEn && nameAr && deliveryDayEn) {
+            items.push({ 
+              nameEn, 
+              nameAr, 
+              code,
+              deliveryDay: deliveryDayEn,
+              deliveryDayEn,
+              deliveryDayAr
+            })
+          }
+        }
+
+        console.log('Parsed delivery centers:', items.length, items.slice(0, 3))
+
+        if (items.length === 0) {
+          toast({ title: "خطأ", description: "لم يتم العثور على بيانات صالحة", variant: "destructive" })
+          setUploading(false)
+          return
+        }
+
+        // إرسال للـ API
+        const res = await fetch('/api/delivery-schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items,
+            clearExisting: true
+          })
+        })
+
+        const data = await res.json()
+
+        if (data.success) {
+          toast({ 
+            title: "تم الرفع بنجاح", 
+            description: `${data.stats.centersAdded} مركز صحي` 
+          })
+          setUploadLogs(prev => [{
+            fileName: file.name,
+            system: 'جدول التوصيل',
+            records: data.stats.centersAdded,
+            time: new Date().toLocaleString('ar-SA')
+          }, ...prev])
+        } else {
+          toast({ title: "خطأ", description: data.error, variant: "destructive" })
+        }
       } else {
         // رفع عادي للملفات الأخرى
         const formData = new FormData()
@@ -228,6 +303,7 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
     { value: 'kidney', label: 'الكلى', desc: 'بنود الكلى', icon: Droplets, color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { value: 'central', label: 'المركزية', desc: 'البنود المركزية', icon: Building2, color: 'text-slate-600', bgColor: 'bg-slate-50' },
     { value: 'alternatives', label: 'البدائل الدوائية', desc: 'بنود بديلة', icon: Pill, color: 'text-teal-600', bgColor: 'bg-teal-50' },
+    { value: 'delivery-schedule', label: 'جدول التوصيل', desc: 'مواعيد التوصيل', icon: Truck, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
   ]
 
   return (
@@ -310,7 +386,7 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
       </div>
 
       {/* Special Items Uploaded */}
-      <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+      <div className="grid grid-cols-3 md:grid-cols-9 gap-2">
         <Card className="bg-pink-50">
           <CardContent className="p-3 flex flex-col items-center">
             <Heart className="w-5 h-5 text-pink-500 mb-1" />
@@ -365,6 +441,13 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
             <Pill className="w-5 h-5 text-teal-600 mb-1" />
             <p className="text-xs text-gray-600">البدائل الدوائية</p>
             <p className="text-lg font-bold text-teal-600">{stats?.alternativesCount?.toLocaleString('ar-SA') || 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-indigo-50">
+          <CardContent className="p-3 flex flex-col items-center">
+            <Truck className="w-5 h-5 text-indigo-600 mb-1" />
+            <p className="text-xs text-gray-600">جدول التوصيل</p>
+            <p className="text-lg font-bold text-indigo-600">{stats?.deliveryCentersCount?.toLocaleString('ar-SA') || 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -453,7 +536,7 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
           <CardDescription>اختر التصنيف ثم ارفع ملف Excel الخاص به</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 md:grid-cols-9 gap-2">
+          <div className="grid grid-cols-3 md:grid-cols-10 gap-2">
             {systemOptions.map((opt) => {
               const Icon = opt.icon
               return (

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
   Users, UserPlus, Edit2, Trash2, Save, X, Check, Package, AlertTriangle, Clock, 
   Heart, Syringe, Shield, Cigarette, Droplets, Building2, FileText, Database, Activity,
-  Settings
+  Settings, Truck, Pill
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -30,7 +30,8 @@ const PERMISSIONS: Permission[] = [
   { key: 'canViewCentral', label: 'البنود المركزية', icon: Building2 },
   { key: 'canViewReports', label: 'التقارير', icon: FileText },
   { key: 'canViewMovement', label: 'تحليل الحركة', icon: Activity },
-  { key: 'canViewAlternatives', label: 'البدائل الدوائية', icon: Activity },
+  { key: 'canViewAlternatives', label: 'البدائل الدوائية', icon: Pill },
+  { key: 'canViewDelivery', label: 'جدول التوصيل', icon: Truck },
 ]
 
 // صلاحيات تحليل الحركة المتقدمة
@@ -62,6 +63,7 @@ interface User {
   canViewReports: boolean
   canViewMovement: boolean
   canViewAlternatives: boolean
+  canViewDelivery: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
   canEditMovementSettings: boolean
@@ -93,6 +95,7 @@ export function UserManagement() {
     canViewReports: true,
     canViewMovement: true,
     canViewAlternatives: true,
+    canViewDelivery: true,
     canViewHoz: true,
     canViewMwsal: true,
     canEditMovementSettings: false,
@@ -135,6 +138,7 @@ export function UserManagement() {
       canViewReports: true,
       canViewMovement: true,
       canViewAlternatives: true,
+      canViewDelivery: true,
       canViewHoz: true,
       canViewMwsal: true,
       canEditMovementSettings: false,
@@ -164,6 +168,7 @@ export function UserManagement() {
       canViewReports: user.canViewReports,
       canViewMovement: user.canViewMovement,
       canViewAlternatives: user.canViewAlternatives || false,
+      canViewDelivery: user.canViewDelivery || false,
       canViewHoz: user.canViewHoz,
       canViewMwsal: user.canViewMwsal,
       canEditMovementSettings: user.canEditMovementSettings,
@@ -244,6 +249,7 @@ export function UserManagement() {
       canViewReports: value,
       canViewMovement: value,
       canViewAlternatives: value,
+      canViewDelivery: value,
       canViewHoz: value,
       canViewMwsal: value,
       canEditMovementSettings: value,

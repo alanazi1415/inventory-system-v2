@@ -15,6 +15,7 @@ interface UserPermissions {
   canViewCentral?: boolean
   canViewReports?: boolean
   canViewAlternatives?: boolean
+  canViewDelivery?: boolean
   canViewHoz?: boolean
   canViewMwsal?: boolean
 }

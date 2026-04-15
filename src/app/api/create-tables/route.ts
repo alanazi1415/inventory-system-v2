@@ -224,11 +224,59 @@ export async function GET() {
     try {
       const tablesCheck = await db.$queryRaw`
         SELECT table_name FROM information_schema.tables
-        WHERE table_name IN ('MovementThresholds', 'ClassificationLog', 'ItemMovement', 'AlternativeGroup', 'AlternativeItem')
+        WHERE table_name IN ('MovementThresholds', 'ClassificationLog', 'ItemMovement', 'AlternativeGroup', 'AlternativeItem', 'DeliveryCenter')
       `
       results.tablesCheck = tablesCheck
     } catch (e: any) {
       results.tablesCheck = { error: e.message }
+    }
+
+    // 9. إضافة صلاحية جدول التوصيل للمستخدمين
+    try {
+      await db.$executeRawUnsafe(`
+        SELECT "canViewDelivery" FROM "User" LIMIT 1
+      `)
+      results.userDeliveryPermission = 'already exists'
+    } catch {
+      try {
+        await db.$executeRawUnsafe(`
+          ALTER TABLE "User" ADD COLUMN "canViewDelivery" BOOLEAN NOT NULL DEFAULT true
+        `)
+        results.userDeliveryPermission = 'added successfully'
+      } catch (e: any) {
+        results.userDeliveryPermission = { error: e.message }
+      }
+    }
+
+    // 10. إنشاء جدول DeliveryCenter
+    try {
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "DeliveryCenter" (
+          "id" TEXT NOT NULL,
+          "nameEn" TEXT NOT NULL,
+          "nameAr" TEXT NOT NULL,
+          "code" TEXT NOT NULL,
+          "deliveryDay" INTEGER NOT NULL,
+          "deliveryDayEn" TEXT NOT NULL,
+          "deliveryDayAr" TEXT NOT NULL,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "lastApproved" TIMESTAMP(3),
+          "approvedBy" TEXT,
+          "notes" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "DeliveryCenter_pkey" PRIMARY KEY ("id")
+        )
+      `)
+      await db.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "DeliveryCenter_deliveryDay_idx" ON "DeliveryCenter"("deliveryDay")
+      `)
+      await db.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "DeliveryCenter_code_idx" ON "DeliveryCenter"("code")
+      `)
+      results.deliveryCenter = 'created successfully'
+    } catch (e: any) {
+      results.deliveryCenter = { error: e.message }
     }
 
     return NextResponse.json({

@@ -1,6 +1,6 @@
 'use client'
 import { Button } from "@/components/ui/button"
-import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle, Activity, Flame, Snowflake, Zap, Pill } from "lucide-react"
+import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle, Activity, Flame, Snowflake, Zap, Pill, Truck } from "lucide-react"
 
 interface UserPermissions {
   canViewInventory: boolean
@@ -16,6 +16,7 @@ interface UserPermissions {
   canViewReports: boolean
   canViewMovement: boolean
   canViewAlternatives: boolean
+  canViewDelivery: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
 }
@@ -51,6 +52,7 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
     { id: 'kidney', label: 'بنود الكلى', icon: Droplets, perm: 'canViewKidney' as keyof UserPermissions },
     { id: 'central', label: 'البنود المركزية', icon: Building2, perm: 'canViewCentral' as keyof UserPermissions },
     { id: 'alternatives', label: 'البدائل الدوائية', icon: Pill, perm: 'canViewAlternatives' as keyof UserPermissions },
+    { id: 'delivery-schedule', label: 'جدول التوصيل', icon: Truck, perm: 'canViewDelivery' as keyof UserPermissions },
     { id: 'reports', label: 'التقارير', icon: FileText, perm: 'canViewReports' as keyof UserPermissions },
     { id: '_divider_movement', label: '---', icon: Activity, perm: null },
     { id: 'movement', label: 'تحليل الحركة', icon: Activity, perm: 'canViewMovement' as keyof UserPermissions },

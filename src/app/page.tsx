@@ -14,11 +14,12 @@ import { UserManagement } from '@/components/dashboard/UserManagement'
 import { MovementPage } from '@/components/dashboard/MovementPage'
 import { MovementCategoryPage } from '@/components/dashboard/MovementCategoryPage'
 import { AlternativesPage } from '@/components/dashboard/AlternativesPage'
+import { DeliverySchedulePage } from '@/components/dashboard/DeliverySchedulePage'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle, Flame, Snowflake, Zap, Pill } from "lucide-react"
 
-type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'alternatives' | 'users' | 'movement' | 'fast-movement' | 'slow-movement' | 'no-movement'
+type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'alternatives' | 'delivery-schedule' | 'users' | 'movement' | 'fast-movement' | 'slow-movement' | 'no-movement'
 
 export default function HomePage() {
   const { selectedSystem, showWelcome, user, isAuthenticated, setSelectedSystem, setShowWelcome, resetWelcome, setUser, logout } = useAppStore()
@@ -211,6 +212,7 @@ export default function HomePage() {
       'kidney': user.permissions.canViewKidney,
       'central': user.permissions.canViewCentral,
       'alternatives': user.permissions.canViewAlternatives,
+      'delivery-schedule': user.permissions.canViewDelivery,
       'reports': user.permissions.canViewReports,
       'movement': user.permissions.canViewMovement,
       'fast-movement': user.permissions.canViewMovement,
@@ -495,6 +497,12 @@ export default function HomePage() {
       case 'alternatives': 
         return canAccessPage('alternatives') ? (
           <AlternativesPage selectedSystem={selectedSystem} />
+        ) : (
+          <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
+        )
+      case 'delivery-schedule': 
+        return canAccessPage('delivery-schedule') ? (
+          <DeliverySchedulePage selectedSystem={selectedSystem} />
         ) : (
           <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
         )

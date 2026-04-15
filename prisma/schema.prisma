@@ -144,6 +144,7 @@ model User {
   canViewReports      Boolean @default(true)
   canViewMovement     Boolean @default(true)
   canViewAlternatives Boolean @default(true)
+  canViewDelivery     Boolean @default(true)
   canViewHoz          Boolean @default(true)
   canViewMwsal        Boolean @default(true)
   // صلاحيات تحليل الحركة
@@ -314,4 +315,27 @@ model AlternativeItem {
 
   @@index([groupId])
   @@index([itemNumber])
+}
+
+// ============================================
+// جدول التوصيل للمراكز الصحية (Delivery Schedule)
+// ============================================
+
+model DeliveryCenter {
+  id              String   @id @default(cuid())
+  nameEn          String   // اسم المركز بالإنجليزي
+  nameAr          String   // اسم المركز بالعربي
+  code            String   // رمز المركز (Health Center Code)
+  deliveryDay     Int      // يوم التوصيل (1-31)
+  deliveryDayEn   String   // وصف يوم التوصيل بالإنجليزي
+  deliveryDayAr   String   // وصف يوم التوصيل بالعربي
+  isActive        Boolean  @default(true)
+  lastApproved    DateTime? // آخر موافقة
+  approvedBy      String?  // من وافق
+  notes           String?  // ملاحظات
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([deliveryDay])
+  @@index([code])
 }

@@ -17,6 +17,7 @@ interface UserPermissions {
   canViewReports: boolean
   canViewMovement: boolean
   canViewAlternatives: boolean
+  canViewDelivery: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
 }
