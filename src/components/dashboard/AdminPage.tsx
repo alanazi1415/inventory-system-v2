@@ -483,6 +483,7 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
           <p><strong>6.</strong> 🚬 <strong>رفع قائمة بنود التدخين:</strong> يصنف بنود التدخين</p>
           <p><strong>7.</strong> 🩺 <strong>رفع قائمة بنود الكلى:</strong> يصنف بنود الكلى</p>
           <p><strong>8.</strong> 🏢 <strong>رفع قائمة البنود المركزية:</strong> يصنف البنود المركزية</p>
+          <p><strong>9.</strong> 💊 <strong>رفع البدائل الدوائية:</strong> يضيف البدائل لكل بند (يدعم بدائل متعددة مفصولة بـ +)</p>
           <p className="text-xs text-gray-500 mt-2">⚠️ يجب رفع ملفات المخزون أولاً، ثم رفع القوائم الخاصة للتصنيف الصحيح</p>
         </CardContent>
       </Card>
