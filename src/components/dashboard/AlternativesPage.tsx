@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Pill, Search, Package, AlertCircle, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react"
+import { Pill, Search, Package, AlertCircle, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, XCircle, CheckCircle } from "lucide-react"
 
 interface AlternativeGroup {
   id: string
   itemNumber: string
   description: string | null
   isActive: boolean
+  originalStock: number
   items: AlternativeItem[]
 }
 
@@ -85,7 +86,8 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
   const stats = {
     totalGroups: total,
     totalAlternatives: groups.reduce((sum, g) => sum + g.items.length, 0),
-    withStock: groups.filter(g => g.items.some(i => (i.availableStock || 0) > 0)).length
+    originalNotAvailable: groups.filter(g => g.originalStock === 0 && g.items.some(i => (i.availableStock || 0) > 0)).length,
+    allAvailable: groups.filter(g => g.originalStock > 0).length
   }
 
   return (
@@ -105,7 +107,7 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
       </div>
 
       {/* الإحصائيات */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Card className="bg-teal-50">
           <CardContent className="p-4 flex items-center gap-3">
             <Pill className="w-8 h-8 text-teal-500" />
@@ -126,10 +128,19 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
         </Card>
         <Card className="bg-green-50">
           <CardContent className="p-4 flex items-center gap-3">
-            <AlertCircle className="w-8 h-8 text-green-500" />
+            <CheckCircle className="w-8 h-8 text-green-500" />
             <div>
-              <p className="text-sm text-gray-600">متوفر بديل في الصفحة</p>
-              <p className="text-2xl font-bold text-green-600">{stats.withStock}</p>
+              <p className="text-sm text-gray-600">الأصل متوفر</p>
+              <p className="text-2xl font-bold text-green-600">{stats.allAvailable}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-orange-50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertCircle className="w-8 h-8 text-orange-500" />
+            <div>
+              <p className="text-sm text-gray-600">يحتاج بديل</p>
+              <p className="text-2xl font-bold text-orange-600">{stats.originalNotAvailable}</p>
             </div>
           </CardContent>
         </Card>
@@ -167,79 +178,95 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
       ) : (
         <>
           <div className="space-y-2">
-            {groups.map((group) => (
-              <Card key={group.id} className="overflow-hidden">
-                <div
-                  className="p-4 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
-                  onClick={() => toggleGroup(group.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    {expandedGroups.has(group.id) ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold">{group.itemNumber}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {group.items.length} بديل
-                        </Badge>
+            {groups.map((group) => {
+              const hasAlternativeWithStock = group.items.some(i => (i.availableStock || 0) > 0)
+              const originalAvailable = group.originalStock > 0
+              
+              return (
+                <Card key={group.id} className="overflow-hidden">
+                  <div
+                    className="p-4 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
+                    onClick={() => toggleGroup(group.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {expandedGroups.has(group.id) ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold">{group.itemNumber}</span>
+                          {/* حالة البند الأصلي */}
+                          {originalAvailable ? (
+                            <Badge className="bg-green-100 text-green-700 text-xs">
+                              متوفر ({group.originalStock.toLocaleString('ar-SA')})
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-700 text-xs">
+                              غير متوفر
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {group.items.length} بديل
+                          </Badge>
+                        </div>
+                        {group.description && (
+                          <p className="text-sm text-gray-500 mt-1">{group.description}</p>
+                        )}
                       </div>
-                      {group.description && (
-                        <p className="text-sm text-gray-500 mt-1">{group.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!originalAvailable && hasAlternativeWithStock && (
+                        <Badge className="bg-green-100 text-green-700">يوجد بديل متوفر</Badge>
+                      )}
+                      {!originalAvailable && !hasAlternativeWithStock && (
+                        <Badge className="bg-red-100 text-red-700">لا يوجد بديل متوفر</Badge>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {group.items.some(i => (i.availableStock || 0) > 0) ? (
-                      <Badge className="bg-green-100 text-green-700">متوفر بديل</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-gray-500">غير متوفر</Badge>
-                    )}
-                  </div>
-                </div>
 
-                {expandedGroups.has(group.id) && (
-                  <div className="border-t bg-gray-50 p-4">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-gray-500 border-b">
-                          <th className="text-right pb-2">#</th>
-                          <th className="text-right pb-2">رقم البند البديل</th>
-                          <th className="text-right pb-2">الكمية المتاحة</th>
-                          <th className="text-right pb-2">الحالة</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.items.map((item, idx) => (
-                          <tr key={item.id} className="border-b last:border-0">
-                            <td className="py-2 text-gray-400">{idx + 1}</td>
-                            <td className="py-2 font-mono">{item.itemNumber}</td>
-                            <td className="py-2">
-                              {(item.availableStock || 0) > 0 ? (
-                                <span className="text-green-600 font-medium">
-                                  {item.availableStock?.toLocaleString('ar-SA')}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">0</span>
-                              )}
-                            </td>
-                            <td className="py-2">
-                              {(item.availableStock || 0) > 0 ? (
-                                <Badge className="bg-green-100 text-green-700 text-xs">متوفر</Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs">غير متوفر</Badge>
-                              )}
-                            </td>
+                  {expandedGroups.has(group.id) && (
+                    <div className="border-t bg-gray-50 p-4">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-gray-500 border-b">
+                            <th className="text-right pb-2">#</th>
+                            <th className="text-right pb-2">رقم البند البديل</th>
+                            <th className="text-right pb-2">الكمية المتاحة</th>
+                            <th className="text-right pb-2">الحالة</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </Card>
-            ))}
+                        </thead>
+                        <tbody>
+                          {group.items.map((item, idx) => (
+                            <tr key={item.id} className="border-b last:border-0">
+                              <td className="py-2 text-gray-400">{idx + 1}</td>
+                              <td className="py-2 font-mono">{item.itemNumber}</td>
+                              <td className="py-2">
+                                {(item.availableStock || 0) > 0 ? (
+                                  <span className="text-green-600 font-medium">
+                                    {item.availableStock?.toLocaleString('ar-SA')}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">0</span>
+                                )}
+                              </td>
+                              <td className="py-2">
+                                {(item.availableStock || 0) > 0 ? (
+                                  <Badge className="bg-green-100 text-green-700 text-xs">متوفر</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">غير متوفر</Badge>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
           </div>
 
           {/* Pagination */}
@@ -255,7 +282,6 @@ export function AlternativesPage({ selectedSystem }: AlternativesPageProps) {
               </Button>
               
               <div className="flex items-center gap-1">
-                {/* عرض أرقام الصفحات */}
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum: number
                   if (totalPages <= 5) {

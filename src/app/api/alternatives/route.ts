@@ -85,17 +85,19 @@ export async function GET(request: NextRequest) {
       ORDER BY "sortOrder" ASC
     ` as any[]
 
-    // جلب أرقام البنود البديلة
-    const allAlternativeNumbers = itemsQuery.map((item: any) => item.itemNumber)
+    // جمع كل أرقام البنود (الأصلية + البدائل)
+    const originalItemNumbers = groupsQuery.map((g: any) => g.itemNumber)
+    const alternativeItemNumbers = itemsQuery.map((item: any) => item.itemNumber)
+    const allItemNumbers = [...new Set([...originalItemNumbers, ...alternativeItemNumbers])]
     
-    // جلب المخزون للبنود البديلة
+    // جلب المخزون لجميع البنود
     let stockMap = new Map<string, number>()
-    if (allAlternativeNumbers.length > 0) {
+    if (allItemNumbers.length > 0) {
       try {
         const stockQuery = await db.$queryRaw`
           SELECT "genericItemNumber", SUM("availableQty") as "availableQty"
           FROM "InventoryItem"
-          WHERE "genericItemNumber" IN (${allAlternativeNumbers.map(n => `'${n}'`).join(',')})
+          WHERE "genericItemNumber" IN (${allItemNumbers.map(n => `'${n}'`).join(',')})
           AND "system" = ${system}
           AND "daysToExpire" > 0
           GROUP BY "genericItemNumber"
@@ -123,12 +125,13 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // بناء النتيجة
+    // بناء النتيجة مع إضافة مخزون البند الأصلي
     const groups = groupsQuery.map((g: any) => ({
       id: g.id,
       itemNumber: g.itemNumber,
       description: g.description,
       isActive: g.isActive,
+      originalStock: stockMap.get(g.itemNumber) || 0,
       items: itemsMap.get(g.id) || []
     }))
 
