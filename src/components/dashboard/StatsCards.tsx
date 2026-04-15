@@ -14,6 +14,7 @@ interface UserPermissions {
   canViewKidney?: boolean
   canViewCentral?: boolean
   canViewReports?: boolean
+  canViewAlternatives?: boolean
   canViewHoz?: boolean
   canViewMwsal?: boolean
 }
