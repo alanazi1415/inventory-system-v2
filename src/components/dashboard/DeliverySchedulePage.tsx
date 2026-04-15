@@ -133,6 +133,9 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
             المراكز الصحية التي تحتاج موافقة
           </h1>
           <p className="text-gray-500">المراكز التي باقي على موعد توصيلها 24-48 ساعة - يجب إعطاءها موافقة مسبقة</p>
+          <p className="text-xs text-amber-600 mt-1">
+            ⚠️ ملاحظة: إذا صادف موعد التوصيل يوم الجمعة يتم التوصيل يوم الخميس، وإذا صادف يوم السبت يتم التوصيل يوم الأحد
+          </p>
         </div>
         <Button variant="outline" onClick={fetchCenters} disabled={loading}>
           <RefreshCw className={`w-4 h-4 ml-2 ${loading ? 'animate-spin' : ''}`} />

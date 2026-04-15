@@ -88,42 +88,57 @@ export async function GET(request: NextRequest) {
     try {
       deliveryCentersCount = await db.deliveryCenter.count({ where: { isActive: true } })
       
-      // حساب المراكز التي تحتاج موافقة (24-48 ساعة)
-      const now = new Date()
-      const currentDay = now.getDate()
-      const currentMonth = now.getMonth()
-      const currentYear = now.getFullYear()
-      const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+      // حساب المراكز التي تحتاج موافقة (24-48 ساعة) مع مراعاة عطلة نهاية الأسبوع
+      const allCenters = await db.deliveryCenter.findMany({ where: { isActive: true } })
       
-      // نحسب اليوم التالي واليوم الذي يليه
-      let targetDays: number[] = []
+      // دالة حساب الأيام المتبقية (نسخة مبسطة من delivery-schedule API)
+      const FRIDAY = 5
+      const SATURDAY = 6
       
-      // غداً
-      if (currentDay + 1 <= daysInCurrentMonth) {
-        targetDays.push(currentDay + 1)
-      } else {
-        targetDays.push(1) // أول الشهر القادم
-      }
-      
-      // بعد غد
-      if (currentDay + 2 <= daysInCurrentMonth) {
-        targetDays.push(currentDay + 2)
-      } else if (currentDay + 2 === daysInCurrentMonth + 1) {
-        targetDays.push(1) // أول الشهر القادم
-      } else {
-        targetDays.push(2) // ثاني الشهر القادم
-      }
-      
-      // إزالة التكرار (مثلاً إذا كانت القيمتان 1)
-      targetDays = [...new Set(targetDays)]
-      
-      // عد المراكز التي يوم توصيلها في targetDays
-      deliveryNeedApprovalCount = await db.deliveryCenter.count({
-        where: {
-          isActive: true,
-          deliveryDay: { in: targetDays }
+      const getEffectiveDeliveryDate = (deliveryDay: number, currentMonth: number, currentYear: number): Date => {
+        let deliveryDate = new Date(currentYear, currentMonth, deliveryDay)
+        let dayOfWeek = deliveryDate.getDay()
+        
+        if (dayOfWeek === FRIDAY) {
+          deliveryDate = new Date(currentYear, currentMonth, deliveryDay - 1)
+        } else if (dayOfWeek === SATURDAY) {
+          const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+          if (deliveryDay + 1 <= daysInMonth) {
+            deliveryDate = new Date(currentYear, currentMonth, deliveryDay + 1)
+          } else {
+            deliveryDate = new Date(currentYear, currentMonth + 1, 1)
+          }
         }
-      })
+        return deliveryDate
+      }
+      
+      const getDaysUntilDelivery = (deliveryDay: number): number => {
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const currentMonth = now.getMonth()
+        const currentYear = now.getFullYear()
+        
+        let effectiveDate = getEffectiveDeliveryDate(deliveryDay, currentMonth, currentYear)
+        
+        if (effectiveDate <= today) {
+          let nextMonth = currentMonth + 1
+          let nextYear = currentYear
+          if (nextMonth > 11) {
+            nextMonth = 0
+            nextYear++
+          }
+          effectiveDate = getEffectiveDeliveryDate(deliveryDay, nextMonth, nextYear)
+        }
+        
+        const diffTime = effectiveDate.getTime() - today.getTime()
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      }
+      
+      // عد المراكز التي بقي على موعدها 1-2 يوم (24-48 ساعة)
+      deliveryNeedApprovalCount = allCenters.filter(c => {
+        const days = getDaysUntilDelivery(c.deliveryDay)
+        return days === 1 || days === 2
+      }).length
     } catch (e) {
       console.log('Could not count delivery centers:', e)
     }

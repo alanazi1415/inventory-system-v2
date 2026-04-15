@@ -27,22 +27,64 @@ async function checkAdminAuth() {
   }
 }
 
-// دالة لحساب الأيام المتبقية حتى التوصيل
+// أيام الأسبوع (JavaScript: 0=الأحد, 5=الجمعة, 6=السبت)
+const FRIDAY = 5
+const SATURDAY = 6
+
+// دالة لحساب تاريخ التوصيل الفعلي مع مراعاة عطلة نهاية الأسبوع
+function getEffectiveDeliveryDate(deliveryDay: number, currentMonth: number, currentYear: number): Date {
+  // إنشاء تاريخ التوصيل
+  let deliveryDate = new Date(currentYear, currentMonth, deliveryDay)
+  let dayOfWeek = deliveryDate.getDay()
+  
+  // إذا صادف يوم الجمعة → التوصيل يوم الخميس (قبل بيوم)
+  if (dayOfWeek === FRIDAY) {
+    deliveryDate = new Date(currentYear, currentMonth, deliveryDay - 1)
+  }
+  // إذا صادف يوم السبت → التوصيل يوم الأحد (بعد بيوم)
+  else if (dayOfWeek === SATURDAY) {
+    // التحقق من أن اليوم التالي لا يزال في نفس الشهر
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+    if (deliveryDay + 1 <= daysInMonth) {
+      deliveryDate = new Date(currentYear, currentMonth, deliveryDay + 1)
+    } else {
+      // إذا كان آخر يوم في الشهر، نرجع للشهر التالي
+      deliveryDate = new Date(currentYear, currentMonth + 1, 1)
+    }
+  }
+  
+  return deliveryDate
+}
+
+// دالة لحساب الأيام المتبقية حتى التوصيل مع مراعاة عطلة نهاية الأسبوع
 function getDaysUntilDelivery(deliveryDay: number): number {
   const now = new Date()
+  // إزالة الوقت للمقارنة الدقيق
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const currentDay = now.getDate()
   const currentMonth = now.getMonth()
   const currentYear = now.getFullYear()
   
-  // إذا كان يوم التوصيل في الشهر الحالي لم يمر بعد
-  if (deliveryDay > currentDay) {
-    return deliveryDay - currentDay
+  // حساب تاريخ التوصيل الفعلي في الشهر الحالي
+  let effectiveDate = getEffectiveDeliveryDate(deliveryDay, currentMonth, currentYear)
+  
+  // إذا كان التاريخ الفعلي قد مر (في الماضي أو اليوم)، نحسب للشهر القادم
+  if (effectiveDate <= today) {
+    // حساب للشهر القادم
+    let nextMonth = currentMonth + 1
+    let nextYear = currentYear
+    if (nextMonth > 11) {
+      nextMonth = 0
+      nextYear++
+    }
+    effectiveDate = getEffectiveDeliveryDate(deliveryDay, nextMonth, nextYear)
   }
   
-  // إذا كان يوم التوصيل قد مر، نحسب للشهر القادم
-  const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
-  const remainingDaysInMonth = daysInCurrentMonth - currentDay
-  return remainingDaysInMonth + deliveryDay
+  // حساب الفرق بالأيام
+  const diffTime = effectiveDate.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  return diffDays
 }
 
 // جلب جميع المراكز مع التصفية
