@@ -50,10 +50,20 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
       if (selectedSystem === 'alternatives') {
         const XLSX = await import('xlsx')
         const buffer = await file.arrayBuffer()
-        const workbook = XLSX.read(buffer, { type: 'array' })
+        const workbook = XLSX.read(buffer, { 
+          type: 'array',
+          cellText: true,  // قراءة كنص
+          cellDates: false,
+          cellNF: false,
+          raw: false  // عدم قراءة القيم الخام (لتجنب الأرقام العلمية)
+        })
         const sheetName = workbook.SheetNames[0]
         const sheet = workbook.Sheets[sheetName]
-        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
+        const rawData = XLSX.utils.sheet_to_json(sheet, { 
+          header: 1,
+          raw: false,  // تحويل للنصوص
+          defval: ''   // قيمة افتراضية للخلايا الفارغة
+        }) as any[][]
 
         if (rawData.length < 2) {
           toast({ title: "خطأ", description: "الملف فارغ", variant: "destructive" })
@@ -65,28 +75,38 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
         // بنية الملف: Column 0 = Nupco Code, Column 1 = Desc., Column 2 = Alternative
         const items = []
         console.log('Raw data rows:', rawData.length)
+        console.log('First row (header):', rawData[0])
+        console.log('Sample data rows:', rawData.slice(1, 5))
+        
         for (let i = 1; i < rawData.length; i++) {
           const row = rawData[i]
           if (!row || row.length === 0) continue
 
-          // تحويل الرقم إلى نص بشكل صحيح (قد يكون رقم كبير أو علمي)
+          // تحويل القيم إلى نص مع معالجة الأرقام الكبيرة
+          // استخدام toLocaleString('fullwide') للحفاظ على الأرقام الكبيرة
           let itemNumber = row[0]
           if (typeof itemNumber === 'number') {
-            itemNumber = itemNumber.toString()
+            // تحويل الرقم الكبير لنص بدون فقدان الدقة
+            itemNumber = itemNumber.toLocaleString('fullwide', { useGrouping: false })
           } else {
             itemNumber = String(itemNumber || '').trim()
           }
+          // إزالة أي مسافات أو فواصل
+          itemNumber = itemNumber.replace(/[\s,]/g, '')
 
           let alternatives = row[2]
           if (typeof alternatives === 'number') {
-            alternatives = alternatives.toString()
+            alternatives = alternatives.toLocaleString('fullwide', { useGrouping: false })
           } else {
             alternatives = String(alternatives || '').trim()
           }
+          // إزالة المسافات الزائدة حول علامة +
+          alternatives = alternatives.replace(/\s*\+\s*/g, '+').trim()
 
           const description = String(row[1] || '').trim()
 
           if (itemNumber && alternatives) {
+            console.log(`Row ${i+1}: item=${itemNumber}, alt=${alternatives}`)
             items.push({ itemNumber, description, alternatives })
           }
         }
@@ -114,7 +134,7 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
         if (data.success) {
           toast({ 
             title: "تم الرفع بنجاح", 
-            description: `${data.stats.groupsCreated} مجموعة بديلة - ${data.stats.alternativesCreated} بند بديل` 
+            description: `${data.stats.groupsCreated} مجموعة بديلة - ${data.stats.alternativesCreated} بند بديل من ${data.stats.validItems} سجل صالح` 
           })
           setUploadLogs(prev => [{
             fileName: file.name,

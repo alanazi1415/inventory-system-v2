@@ -130,18 +130,37 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { items, clearExisting } = body
 
+    console.log('=== Alternatives Upload ===')
     console.log('Received request:', {
       itemsCount: items?.length,
       clearExisting,
-      firstItem: items?.[0]
+      firstItem: items?.[0],
+      lastItem: items?.[items?.length - 1]
     })
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      console.log('No items found in request')
+      console.log('ERROR: No items found in request')
       return NextResponse.json({ error: 'لا توجد بيانات' }, { status: 400 })
     }
 
-    console.log(`Processing ${items.length} alternative items`)
+    // التحقق من صحة البيانات
+    const validItems = items.filter((item: any) => {
+      const hasItemNumber = item.itemNumber && String(item.itemNumber).trim().length > 0
+      const hasAlternatives = item.alternatives && String(item.alternatives).trim().length > 0
+      return hasItemNumber && hasAlternatives
+    })
+    
+    console.log(`Valid items: ${validItems.length} out of ${items.length}`)
+    
+    if (validItems.length === 0) {
+      console.log('ERROR: No valid items after filtering')
+      return NextResponse.json({ 
+        error: 'لا توجد بيانات صالحة',
+        details: 'تأكد من أن الملف يحتوي على أرقام بنود في العامود الأول وبدائل في العامود الثالث'
+      }, { status: 400 })
+    }
+
+    console.log(`Processing ${validItems.length} valid alternative items`)
 
     // حذف البيانات القديمة إذا طُلب
     if (clearExisting) {
@@ -156,7 +175,7 @@ export async function POST(request: NextRequest) {
       alternatives: string[]
     }>()
 
-    for (const item of items) {
+    for (const item of validItems) {
       const itemNumber = String(item.itemNumber || '').trim()
       const description = String(item.description || '').trim()
       const alternativeStr = String(item.alternatives || '').trim()
@@ -170,6 +189,8 @@ export async function POST(request: NextRequest) {
         .filter(a => a.length > 0)
 
       if (newAlternatives.length === 0) continue
+
+      console.log(`Item ${itemNumber}: ${newAlternatives.length} alternatives [${newAlternatives.join(', ')}]`)
 
       // دمج البدائل إذا كان البند موجود مسبقاً
       if (alternativesMap.has(itemNumber)) {
@@ -229,7 +250,8 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'تم رفع البدائل بنجاح',
       stats: {
-        itemsProcessed: items.length,
+        itemsReceived: items.length,
+        validItems: validItems.length,
         groupsCreated: addedGroups,
         alternativesCreated: addedItems
       }
