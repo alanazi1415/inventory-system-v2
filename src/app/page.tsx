@@ -17,7 +17,7 @@ import { AlternativesPage } from '@/components/dashboard/AlternativesPage'
 import { DeliverySchedulePage } from '@/components/dashboard/DeliverySchedulePage'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle, Flame, Snowflake, Zap, Pill } from "lucide-react"
+import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle, Flame, Snowflake, Zap, Pill, Truck } from "lucide-react"
 
 type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'alternatives' | 'delivery-schedule' | 'users' | 'movement' | 'fast-movement' | 'slow-movement' | 'no-movement'
 
@@ -258,7 +258,7 @@ export default function HomePage() {
             ) : stats ? (
               <>
                 <StatsCards stats={stats} onCardClick={handleCardClick} permissions={user?.permissions} />
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3 mt-6">
+                <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-3 mt-6">
                   {user?.permissions?.canViewInventory !== false && (
                     <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentPage('inventory')}>
                       <CardContent className="p-3 flex flex-col items-center gap-2">
@@ -355,6 +355,15 @@ export default function HomePage() {
                         <Pill className="w-7 h-7 text-teal-600" />
                         <p className="font-semibold text-sm">البدائل الدوائية</p>
                         <p className="text-xs text-gray-500">{stats.alternativesCount || 0} مجموعة</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {user?.permissions?.canViewDelivery !== false && (
+                    <Card className="cursor-pointer hover:shadow-lg transition-shadow bg-orange-50" onClick={() => setCurrentPage('delivery-schedule')}>
+                      <CardContent className="p-3 flex flex-col items-center gap-2">
+                        <Truck className="w-7 h-7 text-orange-600" />
+                        <p className="font-semibold text-sm">تحتاج موافقة</p>
+                        <p className="text-xs text-gray-500">{stats.deliveryNeedApprovalCount || 0} مركز (24-48س)</p>
                       </CardContent>
                     </Card>
                   )}

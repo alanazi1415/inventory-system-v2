@@ -82,6 +82,52 @@ export async function GET(request: NextRequest) {
       console.log('Could not count alternatives:', e)
     }
 
+    // عدد المراكز الصحية في جدول التوصيل
+    let deliveryCentersCount = 0
+    let deliveryNeedApprovalCount = 0
+    try {
+      deliveryCentersCount = await db.deliveryCenter.count({ where: { isActive: true } })
+      
+      // حساب المراكز التي تحتاج موافقة (24-48 ساعة)
+      const now = new Date()
+      const currentDay = now.getDate()
+      const currentMonth = now.getMonth()
+      const currentYear = now.getFullYear()
+      const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+      
+      // نحسب اليوم التالي واليوم الذي يليه
+      let targetDays: number[] = []
+      
+      // غداً
+      if (currentDay + 1 <= daysInCurrentMonth) {
+        targetDays.push(currentDay + 1)
+      } else {
+        targetDays.push(1) // أول الشهر القادم
+      }
+      
+      // بعد غد
+      if (currentDay + 2 <= daysInCurrentMonth) {
+        targetDays.push(currentDay + 2)
+      } else if (currentDay + 2 === daysInCurrentMonth + 1) {
+        targetDays.push(1) // أول الشهر القادم
+      } else {
+        targetDays.push(2) // ثاني الشهر القادم
+      }
+      
+      // إزالة التكرار (مثلاً إذا كانت القيمتان 1)
+      targetDays = [...new Set(targetDays)]
+      
+      // عد المراكز التي يوم توصيلها في targetDays
+      deliveryNeedApprovalCount = await db.deliveryCenter.count({
+        where: {
+          isActive: true,
+          deliveryDay: { in: targetDays }
+        }
+      })
+    } catch (e) {
+      console.log('Could not count delivery centers:', e)
+    }
+
     return NextResponse.json({
       totalItems,
       expiredItems,
@@ -95,6 +141,8 @@ export async function GET(request: NextRequest) {
       kidneyItems,
       centralItems,
       alternativesCount,
+      deliveryCentersCount,
+      deliveryNeedApprovalCount,
       totalQty: totalQty._sum.totalQty || 0,
       availableQty: totalQty._sum.availableQty || 0,
       holdQtySum: totalQty._sum.holdQty || 0,
@@ -120,6 +168,8 @@ export async function GET(request: NextRequest) {
       kidneyItems: 0,
       centralItems: 0,
       alternativesCount: 0,
+      deliveryCentersCount: 0,
+      deliveryNeedApprovalCount: 0,
       totalQty: 0,
       availableQty: 0,
       holdQtySum: 0,

@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Truck, Search, RefreshCw, Calendar, Clock, CheckCircle, AlertTriangle, Building2 } from "lucide-react"
+import { Truck, Search, RefreshCw, Calendar, Clock, CheckCircle, AlertTriangle, Building2, CheckCircle2 } from "lucide-react"
 
 interface DeliveryCenter {
   id: string
@@ -23,9 +23,9 @@ interface DeliveryCenter {
 
 interface Stats {
   total: number
-  urgent: number
-  today: number
-  upcoming: number
+  needApproval: number // 24-48 ساعة
+  in24Hours: number // 24 ساعة
+  in48Hours: number // 48 ساعة
 }
 
 interface DeliverySchedulePageProps {
@@ -36,8 +36,8 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
   const [centers, setCenters] = useState<DeliveryCenter[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'urgent' | 'today' | 'upcoming'>('all')
-  const [stats, setStats] = useState<Stats>({ total: 0, urgent: 0, today: 0, upcoming: 0 })
+  const [filter, setFilter] = useState<'48h' | 'all'>('48h')
+  const [stats, setStats] = useState<Stats>({ total: 0, needApproval: 0, in24Hours: 0, in48Hours: 0 })
 
   useEffect(() => {
     fetchCenters()
@@ -46,12 +46,34 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
   const fetchCenters = async () => {
     setLoading(true)
     try {
-      const filterParam = filter !== 'all' ? `&filter=${filter}` : ''
-      const res = await fetch(`/api/delivery-schedule?limit=1000${filterParam}`)
+      // نجلب كل المراكز ثم نفلتر محلياً
+      const res = await fetch(`/api/delivery-schedule?limit=1000`)
       const data = await res.json()
       if (data.success) {
-        setCenters(data.centers || [])
-        setStats(data.stats || { total: 0, urgent: 0, today: 0, upcoming: 0 })
+        const allCenters = data.centers || []
+        
+        // حساب الإحصائيات الجديدة
+        const in24Hours = allCenters.filter((c: DeliveryCenter) => c.daysUntilDelivery === 1).length
+        const in48Hours = allCenters.filter((c: DeliveryCenter) => c.daysUntilDelivery === 2).length
+        const needApproval = in24Hours + in48Hours
+        
+        setStats({ 
+          total: allCenters.length, 
+          needApproval, 
+          in24Hours, 
+          in48Hours 
+        })
+        
+        // فلترة حسب الاختيار - الافتراضي 48 ساعة (يشمل 24 و 48)
+        let filtered = allCenters
+        if (filter === '48h') {
+          // 24-48 ساعة (1-2 يوم)
+          filtered = allCenters.filter((c: DeliveryCenter) => c.daysUntilDelivery === 1 || c.daysUntilDelivery === 2)
+        }
+        
+        // ترتيب حسب الأيام المتبقية
+        filtered.sort((a: DeliveryCenter, b: DeliveryCenter) => a.daysUntilDelivery - b.daysUntilDelivery)
+        setCenters(filtered)
       }
     } catch (error) {
       console.error('Error fetching delivery centers:', error)
@@ -73,7 +95,6 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
       })
       const data = await res.json()
       if (data.success) {
-        // تحديث القائمة
         fetchCenters()
       }
     } catch (error) {
@@ -94,14 +115,10 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
 
   // تحديد حالة المركز
   const getCenterStatus = (daysUntil: number): { color: string; label: string; urgent: boolean } => {
-    if (daysUntil === 0) {
-      return { color: 'bg-red-500', label: 'توصيل اليوم!', urgent: true }
-    } else if (daysUntil === 1) {
-      return { color: 'bg-orange-500', label: 'غداً', urgent: true }
+    if (daysUntil === 1) {
+      return { color: 'bg-orange-500', label: 'غداً - 24 ساعة', urgent: true }
     } else if (daysUntil === 2) {
-      return { color: 'bg-yellow-500', label: 'بعد يومين', urgent: true }
-    } else if (daysUntil <= 7) {
-      return { color: 'bg-blue-500', label: `${daysUntil} أيام`, urgent: false }
+      return { color: 'bg-yellow-500', label: 'بعد غد - 48 ساعة', urgent: true }
     } else {
       return { color: 'bg-gray-400', label: `${daysUntil} يوم`, urgent: false }
     }
@@ -112,10 +129,10 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Truck className="w-6 h-6 text-blue-600" />
-            جدول التوصيل للمراكز الصحية
+            <Truck className="w-6 h-6 text-indigo-600" />
+            المراكز الصحية التي تحتاج موافقة
           </h1>
-          <p className="text-gray-500">مواعيد التوصيل والمراكز التي تحتاج موافقة</p>
+          <p className="text-gray-500">المراكز التي باقي على موعد توصيلها 24-48 ساعة - يجب إعطاءها موافقة مسبقة</p>
         </div>
         <Button variant="outline" onClick={fetchCenters} disabled={loading}>
           <RefreshCw className={`w-4 h-4 ml-2 ${loading ? 'animate-spin' : ''}`} />
@@ -124,7 +141,20 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
       </div>
 
       {/* الإحصائيات */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Card 
+          className={`cursor-pointer transition-all ${filter === '48h' ? 'ring-2 ring-orange-500 bg-orange-50' : ''}`}
+          onClick={() => setFilter('48h')}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="w-8 h-8 text-orange-500" />
+            <div>
+              <p className="text-sm text-gray-600">تحتاج موافقة (48 ساعة)</p>
+              <p className="text-2xl font-bold text-orange-600">{stats.needApproval}</p>
+              <p className="text-xs text-gray-400">{stats.in24Hours} غداً + {stats.in48Hours} بعد غد</p>
+            </div>
+          </CardContent>
+        </Card>
         <Card 
           className={`cursor-pointer transition-all ${filter === 'all' ? 'ring-2 ring-blue-500' : ''}`}
           onClick={() => setFilter('all')}
@@ -132,48 +162,29 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
           <CardContent className="p-4 flex items-center gap-3">
             <Building2 className="w-8 h-8 text-blue-500" />
             <div>
-              <p className="text-sm text-gray-600">إجمالي المراكز</p>
+              <p className="text-sm text-gray-600">جميع المراكز</p>
               <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
             </div>
           </CardContent>
         </Card>
-        <Card 
-          className={`cursor-pointer transition-all ${filter === 'today' ? 'ring-2 ring-red-500' : ''}`}
-          onClick={() => setFilter('today')}
-        >
-          <CardContent className="p-4 flex items-center gap-3 bg-red-50">
-            <AlertTriangle className="w-8 h-8 text-red-500" />
-            <div>
-              <p className="text-sm text-gray-600">توصيل اليوم</p>
-              <p className="text-2xl font-bold text-red-600">{stats.today}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className={`cursor-pointer transition-all ${filter === 'urgent' ? 'ring-2 ring-orange-500' : ''}`}
-          onClick={() => setFilter('urgent')}
-        >
-          <CardContent className="p-4 flex items-center gap-3 bg-orange-50">
-            <Clock className="w-8 h-8 text-orange-500" />
-            <div>
-              <p className="text-sm text-gray-600">عاجل (48 ساعة)</p>
-              <p className="text-2xl font-bold text-orange-600">{stats.urgent}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className={`cursor-pointer transition-all ${filter === 'upcoming' ? 'ring-2 ring-green-500' : ''}`}
-          onClick={() => setFilter('upcoming')}
-        >
-          <CardContent className="p-4 flex items-center gap-3 bg-green-50">
-            <Calendar className="w-8 h-8 text-green-500" />
-            <div>
-              <p className="text-sm text-gray-600">هذا الأسبوع</p>
-              <p className="text-2xl font-bold text-green-600">{stats.upcoming}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* رسالة تذكيرية */}
+      {filter === '48h' && stats.needApproval > 0 && (
+        <Card className="bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-orange-500" />
+            <div>
+              <p className="font-bold text-orange-700">
+                ⚠️ يوجد {stats.needApproval} مركز يحتاج موافقة خلال 48 ساعة
+              </p>
+              <p className="text-sm text-orange-600">
+                ({stats.in24Hours} مركز غداً + {stats.in48Hours} مركز بعد غد) - يجب إعطاء الموافقة قبل موعد التوصيل
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* البحث */}
       <div className="relative">
@@ -195,9 +206,15 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
       ) : filteredCenters.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <Truck className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">لا توجد مراكز في جدول التوصيل</p>
-            <p className="text-sm text-gray-400 mt-1">يمكن للأدمن رفع ملف جدول التوصيل من لوحة التحكم</p>
+            <CheckCircle2 className="w-12 h-12 mx-auto text-green-400 mb-4" />
+            <p className="text-gray-500">
+              {filter === '48h' 
+                ? 'لا توجد مراكز تحتاج موافقة خلال 48 ساعة' 
+                : 'لا توجد مراكز في جدول التوصيل'}
+            </p>
+            {filter === '48h' && (
+              <p className="text-sm text-green-500 mt-2">✓ جميع المراكز القريبة حصلت على موافقة</p>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -207,12 +224,12 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
             return (
               <Card 
                 key={center.id} 
-                className={`overflow-hidden transition-all ${status.urgent ? 'border-2 border-orange-300' : ''}`}
+                className={`overflow-hidden transition-all ${status.urgent ? 'border-2 border-orange-300 bg-orange-50/30' : ''}`}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className={`w-3 h-3 rounded-full ${status.color}`} />
+                      <div className={`w-4 h-4 rounded-full ${status.color} animate-pulse`} />
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-lg">{center.nameAr}</span>
@@ -224,28 +241,27 @@ export function DeliverySchedulePage({ selectedSystem }: DeliverySchedulePagePro
                         <div className="flex items-center gap-2 mt-1">
                           <Calendar className="w-4 h-4 text-gray-400" />
                           <span className="text-sm text-gray-600">
-                            يوم {center.deliveryDay} من كل شهر - {center.deliveryDayAr}
+                            موعد التوصيل: يوم {center.deliveryDay} من كل شهر
                           </span>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge 
-                        className={`${status.color} text-white`}
-                      >
+                      <Badge className={`${status.color} text-white text-sm px-3 py-1`}>
                         {status.label}
                       </Badge>
                       {center.lastApproved ? (
-                        <div className="text-center">
+                        <div className="text-center bg-green-50 rounded-lg px-3 py-2">
                           <CheckCircle className="w-5 h-5 text-green-500 mx-auto" />
-                          <p className="text-xs text-gray-500">تمت الموافقة</p>
+                          <p className="text-xs text-green-600 font-medium">تمت الموافقة</p>
                         </div>
                       ) : status.urgent ? (
                         <Button 
                           size="sm" 
-                          variant="default"
+                          className="bg-green-600 hover:bg-green-700"
                           onClick={() => handleApprove(center.id)}
                         >
+                          <CheckCircle className="w-4 h-4 ml-1" />
                           موافقة
                         </Button>
                       ) : null}
