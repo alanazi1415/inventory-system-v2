@@ -340,6 +340,13 @@ export function AdminPage({ onLogout, onManageUsers }: AdminPageProps) {
             <p className="text-lg font-bold text-slate-600">{stats?.centralCount?.toLocaleString('ar-SA') || 0}</p>
           </CardContent>
         </Card>
+        <Card className="bg-teal-50">
+          <CardContent className="p-3 flex flex-col items-center">
+            <Pill className="w-5 h-5 text-teal-600 mb-1" />
+            <p className="text-xs text-gray-600">البدائل الدوائية</p>
+            <p className="text-lg font-bold text-teal-600">{stats?.alternativesCount?.toLocaleString('ar-SA') || 0}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Change Password Section */}

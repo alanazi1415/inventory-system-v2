@@ -130,7 +130,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { items, clearExisting } = body
 
+    console.log('Received request:', {
+      itemsCount: items?.length,
+      clearExisting,
+      firstItem: items?.[0]
+    })
+
     if (!items || !Array.isArray(items) || items.length === 0) {
+      console.log('No items found in request')
       return NextResponse.json({ error: 'لا توجد بيانات' }, { status: 400 })
     }
 
@@ -157,17 +164,28 @@ export async function POST(request: NextRequest) {
       if (!itemNumber || !alternativeStr) continue
 
       // فصل البدائل بعلامة +
-      const alternatives = alternativeStr
+      const newAlternatives = alternativeStr
         .split('+')
         .map(a => a.trim())
         .filter(a => a.length > 0)
 
-      if (alternatives.length === 0) continue
+      if (newAlternatives.length === 0) continue
 
-      alternativesMap.set(itemNumber, {
-        description,
-        alternatives
-      })
+      // دمج البدائل إذا كان البند موجود مسبقاً
+      if (alternativesMap.has(itemNumber)) {
+        const existing = alternativesMap.get(itemNumber)!
+        // إضافة البدائل الجديدة فقط (بدون تكرار)
+        for (const alt of newAlternatives) {
+          if (!existing.alternatives.includes(alt)) {
+            existing.alternatives.push(alt)
+          }
+        }
+      } else {
+        alternativesMap.set(itemNumber, {
+          description,
+          alternatives: newAlternatives
+        })
+      }
     }
 
     console.log(`Found ${alternativesMap.size} unique items with alternatives`)

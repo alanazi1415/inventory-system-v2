@@ -158,14 +158,23 @@ export async function GET() {
           "id" TEXT NOT NULL,
           "itemNumber" TEXT NOT NULL,
           "description" TEXT,
+          "notes" TEXT,
           "isActive" BOOLEAN NOT NULL DEFAULT true,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "AlternativeGroup_pkey" PRIMARY KEY ("id")
         )
       `)
+      // إزالة الـ UNIQUE index إذا كان موجوداً (لأن البند الواحد قد يكون له عدة بدائل في صفوف مختلفة)
+      try {
+        await db.$executeRawUnsafe(`
+          DROP INDEX IF EXISTS "AlternativeGroup_itemNumber_key"
+        `)
+      } catch (e) {
+        // ignore
+      }
       await db.$executeRawUnsafe(`
-        CREATE UNIQUE INDEX IF NOT EXISTS "AlternativeGroup_itemNumber_key" ON "AlternativeGroup"("itemNumber")
+        CREATE INDEX IF NOT EXISTS "AlternativeGroup_itemNumber_idx" ON "AlternativeGroup"("itemNumber")
       `)
       await db.$executeRawUnsafe(`
         CREATE INDEX IF NOT EXISTS "AlternativeGroup_isActive_idx" ON "AlternativeGroup"("isActive")
@@ -182,6 +191,7 @@ export async function GET() {
           "id" TEXT NOT NULL,
           "groupId" TEXT NOT NULL,
           "itemNumber" TEXT NOT NULL,
+          "description" TEXT,
           "sortOrder" INTEGER NOT NULL DEFAULT 1,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "AlternativeItem_pkey" PRIMARY KEY ("id")

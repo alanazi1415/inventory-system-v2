@@ -13,11 +13,12 @@ import { ReportsPage } from '@/components/dashboard/ReportsPage'
 import { UserManagement } from '@/components/dashboard/UserManagement'
 import { MovementPage } from '@/components/dashboard/MovementPage'
 import { MovementCategoryPage } from '@/components/dashboard/MovementCategoryPage'
+import { AlternativesPage } from '@/components/dashboard/AlternativesPage'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle, Flame, Snowflake, Zap } from "lucide-react"
 
-type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'users' | 'movement' | 'fast-movement' | 'slow-movement' | 'no-movement'
+type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'alternatives' | 'users' | 'movement' | 'fast-movement' | 'slow-movement' | 'no-movement'
 
 export default function HomePage() {
   const { selectedSystem, showWelcome, user, isAuthenticated, setSelectedSystem, setShowWelcome, resetWelcome, setUser, logout } = useAppStore()
@@ -209,6 +210,7 @@ export default function HomePage() {
       'smoking': user.permissions.canViewSmoking,
       'kidney': user.permissions.canViewKidney,
       'central': user.permissions.canViewCentral,
+      'alternatives': user.permissions.canViewAlternatives,
       'reports': user.permissions.canViewReports,
       'movement': user.permissions.canViewMovement,
       'fast-movement': user.permissions.canViewMovement,
@@ -478,6 +480,12 @@ export default function HomePage() {
             </h2>
             <InventoryTable system={selectedSystem} category="central" />
           </div>
+        ) : (
+          <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
+        )
+      case 'alternatives': 
+        return canAccessPage('alternatives') ? (
+          <AlternativesPage selectedSystem={selectedSystem} />
         ) : (
           <div className="p-6"><p className="text-red-500">غير مصرح لك بالوصول إلى هذه الصفحة</p></div>
         )

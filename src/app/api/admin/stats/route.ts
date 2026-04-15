@@ -60,6 +60,7 @@ export async function GET() {
     let smokingCount = 0
     let kidneyCount = 0
     let centralCount = 0
+    let alternativesCount = 0
     try {
       const smokingResult = await db.$queryRaw<any[]>`SELECT COUNT(*)::int as count FROM "SmokingItem"`
       smokingCount = smokingResult[0]?.count || 0
@@ -71,6 +72,10 @@ export async function GET() {
     try {
       const centralResult = await db.$queryRaw<any[]>`SELECT COUNT(*)::int as count FROM "CentralItem"`
       centralCount = centralResult[0]?.count || 0
+    } catch {}
+    try {
+      const alternativesResult = await db.$queryRaw<any[]>`SELECT COUNT(*)::int as count FROM "AlternativeGroup"`
+      alternativesCount = alternativesResult[0]?.count || 0
     } catch {}
     
     // Items marked as special in inventory
@@ -108,6 +113,7 @@ export async function GET() {
       smokingCount,
       kidneyCount,
       centralCount,
+      alternativesCount,
       lifeSavingInHoz,
       lifeSavingInMwsal,
       hozExpiring,
@@ -140,6 +146,7 @@ export async function GET() {
       smokingCount: 0,
       kidneyCount: 0,
       centralCount: 0,
+      alternativesCount: 0,
       lifeSavingInHoz: 0,
       lifeSavingInMwsal: 0,
       hozExpiring: 0,

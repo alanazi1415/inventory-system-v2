@@ -1,6 +1,6 @@
 'use client'
 import { Button } from "@/components/ui/button"
-import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle, Activity, Flame, Snowflake, Zap } from "lucide-react"
+import { Home, Package, AlertTriangle, Clock, Heart, FileText, LogIn, LogOut, RefreshCw, Syringe, Shield, Cigarette, Droplets, Building2, Users, XCircle, Activity, Flame, Snowflake, Zap, Pill } from "lucide-react"
 
 interface UserPermissions {
   canViewInventory: boolean
@@ -15,6 +15,7 @@ interface UserPermissions {
   canViewCentral: boolean
   canViewReports: boolean
   canViewMovement: boolean
+  canViewAlternatives: boolean
   canViewHoz: boolean
   canViewMwsal: boolean
 }
@@ -49,6 +50,7 @@ export function Sidebar({ currentPage, onPageChange, selectedSystem, onSystemCha
     { id: 'smoking', label: 'بنود التدخين', icon: Cigarette, perm: 'canViewSmoking' as keyof UserPermissions },
     { id: 'kidney', label: 'بنود الكلى', icon: Droplets, perm: 'canViewKidney' as keyof UserPermissions },
     { id: 'central', label: 'البنود المركزية', icon: Building2, perm: 'canViewCentral' as keyof UserPermissions },
+    { id: 'alternatives', label: 'البدائل الدوائية', icon: Pill, perm: 'canViewAlternatives' as keyof UserPermissions },
     { id: 'reports', label: 'التقارير', icon: FileText, perm: 'canViewReports' as keyof UserPermissions },
     { id: '_divider_movement', label: '---', icon: Activity, perm: null },
     { id: 'movement', label: 'تحليل الحركة', icon: Activity, perm: 'canViewMovement' as keyof UserPermissions },
