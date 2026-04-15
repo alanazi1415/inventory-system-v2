@@ -33,74 +33,83 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const itemNumber = searchParams.get('itemNumber')
     const search = searchParams.get('search')
-    const limit = parseInt(searchParams.get('limit') || '100')
+    const limit = parseInt(searchParams.get('limit') || '1000')
     const offset = parseInt(searchParams.get('offset') || '0')
 
+    // استخدام Raw SQL للجلب لتجنب مشاكل Prisma client
+    let groupsQuery: any[]
+    
     if (itemNumber) {
       // جلب البدائل لبند محدد
-      const groups = await db.alternativeGroup.findMany({
-        where: { 
-          itemNumber,
-          isActive: true 
-        },
-        include: {
-          items: {
-            orderBy: { sortOrder: 'asc' }
-          }
-        }
-      })
+      groupsQuery = await db.$queryRaw`
+        SELECT * FROM "AlternativeGroup" 
+        WHERE "itemNumber" = ${itemNumber} AND "isActive" = true
+        ORDER BY "createdAt" DESC
+      ` as any[]
+    } else {
+      // جلب جميع البدائل
+      if (search) {
+        groupsQuery = await db.$queryRaw`
+          SELECT * FROM "AlternativeGroup" 
+          WHERE "isActive" = true 
+          AND ("itemNumber" LIKE ${'%' + search + '%'} OR description LIKE ${'%' + search + '%'})
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit} OFFSET ${offset}
+        ` as any[]
+      } else {
+        groupsQuery = await db.$queryRaw`
+          SELECT * FROM "AlternativeGroup" 
+          WHERE "isActive" = true
+          ORDER BY "createdAt" DESC
+          LIMIT ${limit} OFFSET ${offset}
+        ` as any[]
+      }
+    }
 
-      // جلب معلومات المخزون للبدائل
-      const allAlternativeNumbers = groups.flatMap(g => g.items.map(i => i.itemNumber))
-      const stockInfo = await db.inventoryItem.groupBy({
-        by: ['genericItemNumber'],
-        where: {
-          genericItemNumber: { in: allAlternativeNumbers }
-        },
-        _sum: {
-          availableQty: true
-        }
-      })
-
-      const stockMap = new Map(stockInfo.map(s => [s.genericItemNumber, s._sum.availableQty || 0]))
-
-      const result = groups.map(group => ({
-        ...group,
-        items: group.items.map(item => ({
-          ...item,
-          availableStock: stockMap.get(item.itemNumber) || 0
-        }))
-      }))
-
+    if (groupsQuery.length === 0) {
       return NextResponse.json({
         success: true,
-        alternatives: result
+        groups: [],
+        total: 0
       })
     }
 
-    // جلب جميع البدائل مع البحث
-    const where: any = { isActive: true }
-    if (search) {
-      where.OR = [
-        { itemNumber: { contains: search } },
-        { description: { contains: search, mode: 'insensitive' } }
-      ]
+    // جلب الـ items لكل مجموعة
+    const groupIds = groupsQuery.map((g: any) => g.id)
+    const itemsQuery = await db.$queryRaw`
+      SELECT * FROM "AlternativeItem" 
+      WHERE "groupId" IN (${groupIds.join(',')})
+      ORDER BY "sortOrder" ASC
+    ` as any[]
+
+    // تجميع الـ items حسب groupId
+    const itemsMap = new Map<string, any[]>()
+    for (const item of itemsQuery) {
+      if (!itemsMap.has(item.groupId)) {
+        itemsMap.set(item.groupId, [])
+      }
+      itemsMap.get(item.groupId)!.push({
+        id: item.id,
+        itemNumber: item.itemNumber,
+        sortOrder: item.sortOrder,
+        availableStock: 0
+      })
     }
 
-    const [groups, total] = await Promise.all([
-      db.alternativeGroup.findMany({
-        where,
-        include: {
-          items: {
-            orderBy: { sortOrder: 'asc' }
-          }
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset
-      }),
-      db.alternativeGroup.count({ where })
-    ])
+    // بناء النتيجة
+    const groups = groupsQuery.map((g: any) => ({
+      id: g.id,
+      itemNumber: g.itemNumber,
+      description: g.description,
+      isActive: g.isActive,
+      items: itemsMap.get(g.id) || []
+    }))
+
+    // جلب العدد الإجمالي
+    const countResult = await db.$queryRaw`
+      SELECT COUNT(*) as count FROM "AlternativeGroup" WHERE "isActive" = true
+    ` as any[]
+    const total = parseInt(countResult[0]?.count || '0')
 
     return NextResponse.json({
       success: true,
@@ -113,8 +122,11 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Get alternatives error:', error)
     return NextResponse.json({
+      success: false,
       error: 'حدث خطأ في جلب البدائل',
-      details: error.message
+      details: error.message,
+      groups: [],
+      total: 0
     }, { status: 500 })
   }
 }

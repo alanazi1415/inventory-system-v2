@@ -16,7 +16,7 @@ import { MovementCategoryPage } from '@/components/dashboard/MovementCategoryPag
 import { AlternativesPage } from '@/components/dashboard/AlternativesPage'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle, Flame, Snowflake, Zap } from "lucide-react"
+import { AlertTriangle, Clock, Heart, Package, RefreshCw, Calendar, Syringe, Shield, Cigarette, Droplets, Building2, XCircle, Flame, Snowflake, Zap, Pill } from "lucide-react"
 
 type Page = 'home' | 'inventory' | 'alerts' | 'expiring' | 'expired' | 'life-saving' | 'reports' | 'vaccines' | 'strategic' | 'smoking' | 'kidney' | 'central' | 'alternatives' | 'users' | 'movement' | 'fast-movement' | 'slow-movement' | 'no-movement'
 
@@ -344,6 +344,15 @@ export default function HomePage() {
                         <Building2 className="w-7 h-7 text-slate-600" />
                         <p className="font-semibold text-sm">البنود المركزية</p>
                         <p className="text-xs text-gray-500">{stats.centralItems || 0} بند</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {user?.permissions?.canViewAlternatives !== false && (
+                    <Card className="cursor-pointer hover:shadow-lg transition-shadow bg-teal-50" onClick={() => setCurrentPage('alternatives')}>
+                      <CardContent className="p-3 flex flex-col items-center gap-2">
+                        <Pill className="w-7 h-7 text-teal-600" />
+                        <p className="font-semibold text-sm">البدائل الدوائية</p>
+                        <p className="text-xs text-gray-500">{stats.alternativesCount || 0} مجموعة</p>
                       </CardContent>
                     </Card>
                   )}

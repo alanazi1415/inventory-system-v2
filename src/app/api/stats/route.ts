@@ -73,6 +73,15 @@ export async function GET(request: NextRequest) {
       where: { system, daysToExpire: { gt: 0, lte: 90 } } 
     })
 
+    // عدد مجموعات البدائل الدوائية
+    let alternativesCount = 0
+    try {
+      const altCount = await db.$queryRaw`SELECT COUNT(*) as count FROM "AlternativeGroup" WHERE "isActive" = true` as any[]
+      alternativesCount = parseInt(altCount[0]?.count || '0')
+    } catch (e) {
+      console.log('Could not count alternatives:', e)
+    }
+
     return NextResponse.json({
       totalItems,
       expiredItems,
@@ -85,6 +94,7 @@ export async function GET(request: NextRequest) {
       smokingItems,
       kidneyItems,
       centralItems,
+      alternativesCount,
       totalQty: totalQty._sum.totalQty || 0,
       availableQty: totalQty._sum.availableQty || 0,
       holdQtySum: totalQty._sum.holdQty || 0,
@@ -109,6 +119,7 @@ export async function GET(request: NextRequest) {
       smokingItems: 0,
       kidneyItems: 0,
       centralItems: 0,
+      alternativesCount: 0,
       totalQty: 0,
       availableQty: 0,
       holdQtySum: 0,
