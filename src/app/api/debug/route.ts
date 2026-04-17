@@ -1,51 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
-// التحقق من صلاحية الوصول للـ Debug Route
-async function isAuthorized(request: NextRequest): Promise<boolean> {
-  // الطريقة 1: مفتاح سري في Header
-  const authHeader = request.headers.get('x-debug-secret')
-  if (authHeader === process.env.DEBUG_SECRET) {
-    return true
-  }
+/**
+ * Debug Route - للتشخيص فقط
+ * مُؤمّن: يتطلب صلاحية الأدمن
+ */
 
-  // الطريقة 2: تحقق من Cookie (للمسؤولين المسجلين)
+// التحقق من صلاحية الأدمن
+async function checkAdminAuth(): Promise<boolean> {
   try {
-    const cookieStore = await import('next/headers').then(m => m.cookies())
-    const cookies = await cookieStore
-    return !!cookies.get('admin_session')?.value
+    const cookieStore = await cookies()
+    const session = cookieStore.get('admin_session')
+    
+    if (!session?.value) return false
+    
+    const adminSession = await db.adminSession.findUnique({
+      where: { token: session.value }
+    })
+    
+    return !!(adminSession && adminSession.expiresAt > new Date())
   } catch {
     return false
   }
 }
 
 export async function GET(request: NextRequest) {
+  // منع الوصول في الإنتاج
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Not Found' },
+      { status: 404 }
+    )
+  }
+  
+  // التحقق من الصلاحية
+  if (!await checkAdminAuth()) {
+    return NextResponse.json(
+      { error: 'غير مصرح بالوصول' },
+      { status: 401 }
+    )
+  }
+
   try {
-    // التحقق من الصلاحية
-    if (!await isAuthorized(request)) {
-      return NextResponse.json(
-        { error: 'غير مصرح بالوصول', status: 401 },
-        { status: 401 }
-      )
-    }
+    // اختبار الاتصال بقاعدة البيانات
+    await db.$queryRaw`SELECT 1 as health`
 
-    // اختبار الاتصال بقاعدة البيانات (بدون كشف معلومات حساسة)
-    const healthCheck = await db.$queryRaw`SELECT 1 as health`
-
-    // إحصائيات عامة (بدون تفاصيل حساسة)
+    // إحصائيات عامة (آمنة)
     const stats = {
       status: 'ok',
       database: 'connected',
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
+      nodeVersion: process.version
     }
 
     return NextResponse.json(stats)
 
   } catch (error: any) {
-    // لا نكشف Stack Trace في الإنتاج
+    // لا نكشف تفاصيل الخطأ
     console.error('Debug error:', error.message)
     return NextResponse.json(
       {

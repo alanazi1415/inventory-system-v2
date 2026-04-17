@@ -339,3 +339,27 @@ model DeliveryCenter {
   @@index([deliveryDay])
   @@index([code])
 }
+
+// ============================================
+// سجل التدقيق (Audit Log)
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?  // معرف المستخدم (null للأدمن)
+  userRole    String   // دور المستخدم (admin, user)
+  action      String   // نوع العملية (login, logout, create, update, delete)
+  entity      String   // اسم الجدول/الكيان المتأثر
+  entityId    String?  // معرف السجل المتأثر
+  oldData     String?  // البيانات القديمة (JSON)
+  newData     String?  // البيانات الجديدة (JSON)
+  ipAddress   String?  // عنوان IP
+  userAgent   String?  // معلومات المتصفح
+  details     String?  // تفاصيل إضافية
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+}

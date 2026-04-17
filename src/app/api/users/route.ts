@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
+import { hashPassword } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,23 +11,17 @@ async function checkAdminAuth() {
     const cookieStore = await cookies()
     const session = cookieStore.get('admin_session')
     
-    console.log('Checking admin auth, cookie exists:', !!session?.value)
-    
     if (session?.value) {
       const adminSession = await db.adminSession.findUnique({
         where: { token: session.value }
       })
       
-      console.log('Admin session in DB:', !!adminSession)
-      
       if (adminSession && adminSession.expiresAt > new Date()) {
         return true
       }
       
-      // إذا لم يتم العثور على الجلسة في DB، نتحقق من صحة الـ token
-      // ونعيد إنشاؤه إذا لزم الأمر
+      // إذا لم يتم العثور على الجلسة في DB، نعيد إنشاؤها
       if (!adminSession) {
-        console.log('Session not in DB, but cookie exists - recreating...')
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
         try {
           await db.adminSession.create({
@@ -87,28 +82,28 @@ export async function GET() {
     return NextResponse.json({ users })
   } catch (error: any) {
     console.error('Get users error:', error)
-    return NextResponse.json({ error: 'حدث خطأ', details: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
 
 // إنشاء مستخدم جديد
 export async function POST(request: NextRequest) {
   try {
-    console.log('POST /api/users - Starting...')
-    
     const isAdmin = await checkAdminAuth()
-    console.log('Admin auth check result:', isAdmin)
-    
     if (!isAdmin) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
     
     const data = await request.json()
-    console.log('Received data:', { ...data, password: '***' })
     
     // التحقق من البيانات المطلوبة
     if (!data.username || !data.name || !data.password) {
       return NextResponse.json({ error: 'يرجى ملء جميع الحقول المطلوبة' }, { status: 400 })
+    }
+    
+    // التحقق من طول كلمة المرور
+    if (data.password.length < 4) {
+      return NextResponse.json({ error: 'كلمة المرور يجب أن تكون 4 أحرف على الأقل' }, { status: 400 })
     }
     
     // التحقق من عدم وجود المستخدم
@@ -120,12 +115,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'اسم المستخدم موجود مسبقاً' }, { status: 400 })
     }
     
-    console.log('Creating user...')
+    // تشفير كلمة المرور
+    const hashedPassword = await hashPassword(data.password)
+    
     const user = await db.user.create({
       data: {
-        username: data.username,
-        password: data.password,
-        name: data.name,
+        username: data.username.trim(),
+        password: hashedPassword,
+        name: data.name.trim(),
         isActive: data.isActive ?? true,
         canViewInventory: data.canViewInventory ?? true,
         canViewAlerts: data.canViewAlerts ?? true,
@@ -148,16 +145,10 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    console.log('User created successfully:', user.id)
     return NextResponse.json({ success: true, user })
   } catch (error: any) {
     console.error('Create user error:', error)
-    console.error('Error stack:', error.stack)
-    return NextResponse.json({ 
-      error: 'حدث خطأ في إنشاء المستخدم', 
-      details: error.message,
-      code: error.code 
-    }, { status: 500 })
+    return NextResponse.json({ error: 'حدث خطأ في إنشاء المستخدم' }, { status: 500 })
   }
 }
 
@@ -171,8 +162,12 @@ export async function PUT(request: NextRequest) {
     
     const data = await request.json()
     
+    if (!data.id) {
+      return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 })
+    }
+    
     const updateData: any = {
-      name: data.name,
+      name: data.name?.trim(),
       isActive: data.isActive,
       canViewInventory: data.canViewInventory,
       canViewAlerts: data.canViewAlerts,
@@ -194,9 +189,9 @@ export async function PUT(request: NextRequest) {
       canClassifyMovement: data.canClassifyMovement
     }
     
-    // تحديث كلمة المرور فقط إذا تم توفيرها
-    if (data.password) {
-      updateData.password = data.password
+    // تحديث كلمة المرور فقط إذا تم توفيرها (مع التشفير)
+    if (data.password && data.password.length >= 4) {
+      updateData.password = await hashPassword(data.password)
     }
     
     const user = await db.user.update({
@@ -207,7 +202,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, user })
   } catch (error: any) {
     console.error('Update user error:', error)
-    return NextResponse.json({ error: 'حدث خطأ', details: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
 
@@ -233,6 +228,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Delete user error:', error)
-    return NextResponse.json({ error: 'حدث خطأ', details: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

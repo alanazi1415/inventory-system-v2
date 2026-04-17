@@ -1,9 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
+async function checkAdminAuth(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies()
+    const session = cookieStore.get('admin_session')
+    
+    if (!session?.value) return false
+    
+    const adminSession = await db.adminSession.findUnique({
+      where: { token: session.value }
+    })
+    
+    return !!(adminSession && adminSession.expiresAt > new Date())
+  } catch {
+    return false
+  }
+}
+
 export async function GET(request: NextRequest) {
+  // منع الوصول في الإنتاج
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 })
+  }
+  
+  if (!await checkAdminAuth()) {
+    return NextResponse.json({ error: 'غير مصرح بالوصول' }, { status: 401 })
+  }
+  
   const { searchParams } = new URL(request.url)
   const itemNumber = searchParams.get('itemNumber')
   const system = searchParams.get('system') || 'hoz'
@@ -49,60 +76,7 @@ export async function GET(request: NextRequest) {
       items: asAlternative
     }
 
-    // 4. إذا كان البند أصلي، نتحقق من بدائله
-    if (asOriginal.length > 0) {
-      const groupId = asOriginal[0].id
-      const alternatives = await db.$queryRaw`
-        SELECT * FROM "AlternativeItem"
-        WHERE "groupId" = ${groupId}
-        ORDER BY "sortOrder"
-      ` as any[]
-      
-      results.checks.alternatives = {
-        count: alternatives.length,
-        items: alternatives
-      }
-
-      // 5. التحقق من مخزون البدائل
-      if (alternatives.length > 0) {
-        const altNumbers = alternatives.map((a: any) => a.itemNumber)
-        const altStock = await db.$queryRaw`
-          SELECT "genericItemNumber", SUM("availableQty") as "availableQty"
-          FROM "InventoryItem"
-          WHERE "genericItemNumber" IN (${altNumbers.map(n => `'${n}'`).join(',')})
-          AND "system" = ${system}
-          AND "daysToExpire" > 0
-          GROUP BY "genericItemNumber"
-        ` as any[]
-        
-        results.checks.alternativesStock = {
-          stockData: altStock,
-          summary: alternatives.map((a: any) => {
-            const stock = altStock.find((s: any) => s.genericItemNumber === a.itemNumber)
-            return {
-              itemNumber: a.itemNumber,
-              availableQty: stock?.availableQty || 0
-            }
-          })
-        }
-      }
-    }
-
-    // 6. عرض عينة من البيانات
-    const sampleGroups = await db.$queryRaw`
-      SELECT * FROM "AlternativeGroup" LIMIT 5
-    ` as any[]
-    
-    const sampleItems = await db.$queryRaw`
-      SELECT * FROM "AlternativeItem" LIMIT 10
-    ` as any[]
-
-    results.sample = {
-      groups: sampleGroups,
-      items: sampleItems
-    }
-
-    // 7. إحصائيات عامة
+    // 4. إحصائيات عامة
     const groupCount = await db.$queryRaw`
       SELECT COUNT(*) as count FROM "AlternativeGroup"
     ` as any[]
@@ -120,8 +94,8 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Debug alternatives error:', error)
     return NextResponse.json({
-      error: error.message,
-      stack: error.stack
+      error: 'حدث خطأ',
+      code: 'QUERY_ERROR'
     }, { status: 500 })
   }
 }

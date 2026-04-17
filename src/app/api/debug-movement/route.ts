@@ -1,11 +1,38 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+async function checkAdminAuth(): Promise<boolean> {
   try {
-    // جلب جميع البيانات بدون فلترة
+    const cookieStore = await cookies()
+    const session = cookieStore.get('admin_session')
+    
+    if (!session?.value) return false
+    
+    const adminSession = await db.adminSession.findUnique({
+      where: { token: session.value }
+    })
+    
+    return !!(adminSession && adminSession.expiresAt > new Date())
+  } catch {
+    return false
+  }
+}
+
+export async function GET() {
+  // منع الوصول في الإنتاج
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 })
+  }
+  
+  if (!await checkAdminAuth()) {
+    return NextResponse.json({ error: 'غير مصرح بالوصول' }, { status: 401 })
+  }
+  
+  try {
+    // جلب عينة محدودة
     const allItems = await db.itemMovement.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' }
@@ -32,14 +59,14 @@ export async function GET() {
       recentItems: allItems,
       recentReports: reports,
       message: allItems.length === 0 
-        ? '⚠️ لا توجد بيانات في جدول ItemMovement - قم برفع تقرير الحركة'
+        ? '⚠️ لا توجد بيانات - قم برفع تقرير الحركة'
         : `✅ يوجد ${total} بند في قاعدة البيانات`
     })
   } catch (error: any) {
     console.error('Debug error:', error)
     return NextResponse.json({
-      error: error.message,
-      hint: 'قد يكون جدول ItemMovement غير موجود - شغل /api/fix-all أولاً'
+      error: 'حدث خطأ',
+      code: 'QUERY_ERROR'
     }, { status: 500 })
   }
 }

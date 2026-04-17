@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
+import { verifyPassword, isPasswordHashed } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,26 +14,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'يرجى إدخال كلمة المرور' }, { status: 400 })
     }
     
-    // البحث عن مستخدم بكلمة المرور
-    const user = await db.user.findFirst({
-      where: {
-        password: password,
-        isActive: true
-      }
+    // الحد من طول كلمة المرور لمنع الهجمات
+    if (password.length > 100) {
+      return NextResponse.json({ error: 'كلمة المرور طويلة جداً' }, { status: 400 })
+    }
+    
+    // البحث عن مستخدم نشط
+    const users = await db.user.findMany({
+      where: { isActive: true }
     })
     
-    if (user) {
+    // التحقق من كلمة المرور (مع دعم التشفير الجديد والقديم)
+    let matchedUser = null
+    
+    for (const user of users) {
+      if (isPasswordHashed(user.password)) {
+        // كلمة المرور مشفرة - استخدام bcrypt
+        const isValid = await verifyPassword(password, user.password)
+        if (isValid) {
+          matchedUser = user
+          break
+        }
+      } else {
+        // كلمة المرور غير مشفرة - مقارنة مباشرة (للتوافق مع البيانات القديمة)
+        if (user.password === password) {
+          matchedUser = user
+          break
+        }
+      }
+    }
+    
+    if (matchedUser) {
       const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 ساعة
       
       await db.userSession.create({
-        data: { token, userId: user.id, expiresAt }
+        data: { token, userId: matchedUser.id, expiresAt }
       })
       
       const cookieStore = await cookies()
       cookieStore.set('user_session', token, {
         httpOnly: true,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         expires: expiresAt
       })
@@ -40,28 +63,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         authenticated: true,
         user: {
-          id: user.id,
-          name: user.name,
-          username: user.username,
+          id: matchedUser.id,
+          name: matchedUser.name,
+          username: matchedUser.username,
           permissions: {
-            canViewInventory: user.canViewInventory,
-            canViewAlerts: user.canViewAlerts,
-            canViewExpiring: user.canViewExpiring,
-            canViewExpired: user.canViewExpired,
-            canViewLifeSaving: user.canViewLifeSaving,
-            canViewVaccines: user.canViewVaccines,
-            canViewStrategic: user.canViewStrategic,
-            canViewSmoking: user.canViewSmoking,
-            canViewKidney: user.canViewKidney,
-            canViewCentral: user.canViewCentral,
-            canViewAlternatives: user.canViewAlternatives,
-            canViewDelivery: user.canViewDelivery,
-            canViewReports: user.canViewReports,
-            canViewMovement: user.canViewMovement,
-            canViewHoz: user.canViewHoz,
-            canViewMwsal: user.canViewMwsal,
-            canEditMovementSettings: user.canEditMovementSettings,
-            canClassifyMovement: user.canClassifyMovement
+            canViewInventory: matchedUser.canViewInventory,
+            canViewAlerts: matchedUser.canViewAlerts,
+            canViewExpiring: matchedUser.canViewExpiring,
+            canViewExpired: matchedUser.canViewExpired,
+            canViewLifeSaving: matchedUser.canViewLifeSaving,
+            canViewVaccines: matchedUser.canViewVaccines,
+            canViewStrategic: matchedUser.canViewStrategic,
+            canViewSmoking: matchedUser.canViewSmoking,
+            canViewKidney: matchedUser.canViewKidney,
+            canViewCentral: matchedUser.canViewCentral,
+            canViewAlternatives: matchedUser.canViewAlternatives,
+            canViewDelivery: matchedUser.canViewDelivery,
+            canViewReports: matchedUser.canViewReports,
+            canViewMovement: matchedUser.canViewMovement,
+            canViewHoz: matchedUser.canViewHoz,
+            canViewMwsal: matchedUser.canViewMwsal,
+            canEditMovementSettings: matchedUser.canEditMovementSettings,
+            canClassifyMovement: matchedUser.canClassifyMovement
           }
         }
       })
@@ -70,7 +93,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'كلمة المرور غير صحيحة أو الحساب غير مفعل' }, { status: 401 })
   } catch (error: any) {
     console.error('User auth error:', error)
-    return NextResponse.json({ error: 'حدث خطأ', details: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
 
