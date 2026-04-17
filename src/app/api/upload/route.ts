@@ -1,8 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import * as xlsx from 'xlsx'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
+
+// ============ Rate Limiting Configuration ============
+const UPLOAD_RATE_LIMIT = {
+  limit: 10,           // 10 طلبات رفع
+  windowMs: 60000,      // خلال دقيقة واحدة
+  blockDuration: 300   // حظر 5 دقائق عند التجاوز
+}
+
+// ============ File Validation ============
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls']
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+
+function validateFile(file: File): { valid: boolean; error?: string } {
+  const fileName = file.name.toLowerCase()
+  const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext))
+
+  if (!hasValidExtension) {
+    return { valid: false, error: 'نوع الملف غير مسموح. الأنواع المسموحة: XLSX, XLS' }
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return { valid: false, error: `حجم الملف كبير جداً. الحد الأقصى: ${MAX_FILE_SIZE / 1024 / 1024}MB` }
+  }
+
+  return { valid: true }
+}
+
+// ============ Security Validation ============
+function sanitizeSystem(system: string | null): string | null {
+  if (!system) return null
+
+  const allowedSystems = [
+    'hoz', 'mwsal',
+    'life_saving', 'narcotic', 'vaccine', 'strategic',
+    'smoking', 'kidney', 'central'
+  ]
+
+  return allowedSystems.includes(system) ? system : null
+}
 
 // دالة لإنشاء الجداول إذا لم تكن موجودة
 async function ensureDatabaseTables() {
@@ -227,6 +267,17 @@ async function processSpecialItems(
 
 export async function POST(request: NextRequest) {
   try {
+    // ============ 1. Rate Limiting ============
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] ||
+                      request.headers.get('x-real-ip') || 'unknown'
+
+    const rateLimitResult = checkRateLimit(`upload:${clientIp}`, UPLOAD_RATE_LIMIT)
+
+    if (!rateLimitResult.success) {
+      console.warn(`Rate limit exceeded for IP: ${clientIp}`)
+      return rateLimitResponse(rateLimitResult)
+    }
+
     await ensureDatabaseTables()
 
     const isAuth = await checkAuth()
@@ -242,14 +293,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'الملف والنظام مطلوبان' }, { status: 400 })
     }
 
+    // ============ 2. التحقق من النظام ============
+    const sanitizedSystem = sanitizeSystem(system)
+    if (!sanitizedSystem) {
+      return NextResponse.json({ error: 'نظام غير صالح' }, { status: 400 })
+    }
+
+    // ============ 3. التحقق من الملف ============
+    const fileValidation = validateFile(file)
+    if (!fileValidation.valid) {
+      return NextResponse.json({ error: fileValidation.error }, { status: 400 })
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer())
     const data = await parseExcel(buffer)
     let recordsCount = 0
 
-    console.log('Upload started:', { system, fileName: file.name, rows: (data as any[]).length })
+    console.log('Upload started:', { system: sanitizedSystem, fileName: file.name, rows: (data as any[]).length })
 
-    if (system === 'hoz' || system === 'mwsal') {
-      await db.inventoryItem.deleteMany({ where: { system } })
+    if (sanitizedSystem === 'hoz' || sanitizedSystem === 'mwsal') {
+      await db.inventoryItem.deleteMany({ where: { system: sanitizedSystem } })
 
       // Get all special items lists
       const [lifeSaving, narcotic, vaccine, strategic, smoking, kidney, central] = await Promise.all([
@@ -288,7 +351,7 @@ export async function POST(request: NextRequest) {
         const daysToExpire = calculateDaysFromBBD(bbd)
 
         return {
-          system,
+          system: sanitizedSystem,
           genericItemNumber: genericNum,
           genericItemDescription: safeString(row['Generic Item description']),
           tradeItemNumber: tradeNum,
@@ -317,15 +380,15 @@ export async function POST(request: NextRequest) {
       }
       recordsCount = items.length
 
-    } else if (system === 'life_saving') {
-      recordsCount = await processSpecialItems(system, data as any[], 'lifeSavingItem', 'isLifeSaving')
-    } else if (system === 'narcotic') {
-      recordsCount = await processSpecialItems(system, data as any[], 'narcoticItem', 'isNarcotic')
-    } else if (system === 'vaccine') {
-      recordsCount = await processSpecialItems(system, data as any[], 'vaccineItem', 'isVaccine')
-    } else if (system === 'strategic') {
-      recordsCount = await processSpecialItems(system, data as any[], 'strategicItem', 'isStrategic')
-    } else if (system === 'smoking') {
+    } else if (sanitizedSystem === 'life_saving') {
+      recordsCount = await processSpecialItems(sanitizedSystem, data as any[], 'lifeSavingItem', 'isLifeSaving')
+    } else if (sanitizedSystem === 'narcotic') {
+      recordsCount = await processSpecialItems(sanitizedSystem, data as any[], 'narcoticItem', 'isNarcotic')
+    } else if (sanitizedSystem === 'vaccine') {
+      recordsCount = await processSpecialItems(sanitizedSystem, data as any[], 'vaccineItem', 'isVaccine')
+    } else if (sanitizedSystem === 'strategic') {
+      recordsCount = await processSpecialItems(sanitizedSystem, data as any[], 'strategicItem', 'isStrategic')
+    } else if (sanitizedSystem === 'smoking') {
       // بنود التدخين
       // 1. إعادة تعيين جميع البنود إلى غير تدخين
       await db.inventoryItem.updateMany({
@@ -367,7 +430,7 @@ export async function POST(request: NextRequest) {
           data: { isSmoking: true }
         })
       }
-    } else if (system === 'kidney') {
+    } else if (sanitizedSystem === 'kidney') {
       // بنود الكلى
       // 1. إعادة تعيين جميع البنود إلى غير كلى
       await db.inventoryItem.updateMany({
@@ -409,7 +472,7 @@ export async function POST(request: NextRequest) {
           data: { isKidney: true }
         })
       }
-    } else if (system === 'central') {
+    } else if (sanitizedSystem === 'central') {
       // البنود المركزية
       // 1. إعادة تعيين جميع البنود إلى غير مركزية
       await db.inventoryItem.updateMany({
@@ -453,11 +516,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await db.uploadLog.create({ 
-      data: { fileName: file.name, system, recordsCount } 
+    await db.uploadLog.create({
+      data: { fileName: file.name, system: sanitizedSystem, recordsCount }
     }).catch(() => {})
 
-    console.log('Upload completed:', { system, recordsCount })
+    console.log('Upload completed:', { system: sanitizedSystem, recordsCount })
 
     return NextResponse.json({ 
       success: true, 
