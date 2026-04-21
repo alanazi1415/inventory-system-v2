@@ -1,6 +1,6 @@
 {
   "name": "inventory-system-v2",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,10 +8,12 @@
     "start": "next start",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "lint": "next lint"
+    "lint": "next lint",
+    "security:audit": "npm audit",
+    "security:fix": "npm audit fix"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^6.19.3",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-slot": "^1.0.2",
@@ -26,21 +28,27 @@
     "recharts": "^2.12.0",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
-    "xlsx": "^0.18.5",
-    "zustand": "^4.5.0"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zustand": "^4.5.0",
+    "uuid": "^9.0.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.11.16",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
+    "@types/uuid": "^9.0.0",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.33",
-    "prisma": "^5.22.0",
+    "prisma": "^6.19.3",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=18.x"
+  },
+  "overrides": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }
